@@ -9,6 +9,7 @@ float shuntVoltage, batteryVoltage, current;
 const float c0 = 1 / (40.0 * 0.1);
 const float c1 = 5 / 1023;
 const float R = 3;
+const int SERIAL_BAUD_RATE = 9600;
 
 long int buffer[4];
 JsonDocument doc;
@@ -16,22 +17,19 @@ JsonDocument doc;
 #define TXp2 17
 
 void setup() {
-
   pinMode(A0, INPUT);
   pinMode(A1, INPUT);
-  Serial.begin(9600);
-  Serial2.begin(9600);
+  Serial.begin(SERIAL_BAUD_RATE); //this serial port isn't in use
+  Serial2.begin(SERIAL_BAUD_RATE);
 }
 
 void updateCurrent() {
-
   analogValue = analogRead(A0);
   shuntVoltage = analogValue * c1;
   current = shuntVoltage * c0;
 }
 
 void updateVoltage() {
-
   analogValue = analogRead(A1);
   float voltageDivider = analogValue * c1;
   batteryVoltage = voltageDivider * R;
@@ -41,7 +39,6 @@ void updateVoltage() {
 /* b's is a parameter passed through reference to the function */
 /////////////////////////////////////////////////////////////////
 void updateReads() {
-
   updateVoltage();
   updateCurrent();
 }
