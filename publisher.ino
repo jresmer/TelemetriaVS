@@ -2,6 +2,7 @@
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
 #include "WiFi.h"
+#include <time.h>
 
 
 #define RXp2 16
@@ -15,6 +16,8 @@ float batteryVoltage, current;
 const char* ssid = "";//use your ssid
 const char* password = "";//use your password
 const char* mqtt_server = "broker.mqtt-dashboard.com";
+const int mqtt_port = 1883;
+const int MQTT_BUFFER_LENGTH=500;
 ////////////////////////////////////
 /* Broker Communication Variables */
 ////////////////////////////////////
@@ -24,19 +27,19 @@ unsigned long lastMsg = 0;
 #define MSG_BUFFER_SIZE (50)
 char msg[MSG_BUFFER_SIZE];
 const int maxReconnectionAttempts = 5;
+const int SERIALBR = 9600
 
 // this sample code provided by www.programmingboss.com
 void setup() {
-
-  Serial.begin(9600);
-  Serial2.begin(9600, SERIAL_8N1, RXp2, TXp2);
+  Serial.begin(SERIALBR);
+  Serial2.begin(SERIALBR, SERIAL_8N1, RXp2, TXp2);
   setup_wifi();
-  client.setServer(mqtt_server, 1883);
+  setDateTime();
+  client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
 }
 
 void setup_wifi() {
-
   delay(10);
   // We start by connecting to a WiFi network
   Serial.println();
@@ -57,6 +60,25 @@ void setup_wifi() {
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
+}
+
+void setDateTime() {
+  // You can use your own timezone, but the exact time is not used at all.
+  // Only the date is needed for validating the certificates.
+  configTime(America/Sao_Paulo, "pool.ntp.org", "time.nist.gov");
+
+  Serial.print("Waiting for NTP time sync: ");
+  time_t nowe = time(nullptr);
+  while (nowe < 8 * 3600 * 2) {
+    delay(100);
+    Serial.print(".");
+    nowe = time(nullptr);
+  }
+  Serial.println();
+
+  struct tm timeinfo;
+  gmtime_r(&nowe, &timeinfo);
+  Serial.printf("%s %s", tzname[0], asctime(&timeinfo));
 }
 
 // Check for Message received on define topic for MQTT Broker
@@ -98,9 +120,26 @@ void reconnect() {
   }
 }
 
-void loop() {
+void sendMQTT(float voltage, float current) {
+    JsonDocument JSONencode;
+  
+    JSONencode["Voltage"]=voltage;
+    JSONencode["Current"]=current;
+  
+    char time[30];
+    snprintf(time,30,"%d-%d-%dT%d:%d:%dZ-0300",year(),month(),day(),hour(),minute(),second());
+    JSONencode["time"]=time;
+  
+    String JSONmessageBuffer;
+    serializeJson(JSONencode,JSONmessageBuffer);
+    Serial.println(JSONmessageBuffer);
+    Serial.println("Publishing message");
+    char Buffer[MQTT_BUFFER_LENGTH];
+    JSONmessageBuffer.toCharArray(Buffer,MQTT_BUFFER_LENGTH);
+    client->publish(MQTT_TOPIC, Buffer); 
+}
 
-  while (1) {
+void loop() {
     // put your main code here, to run repeatedly:
     if (!client.connected()) {
       reconnect();
@@ -131,9 +170,9 @@ void loop() {
       client.publish("VSTest", msg);
       Serial2.println("Successfull read!");
 
+      sendMQTT(batteryVoltage,current);
+      
+      
       delay(1000);
     }
-
-  }
-
 }
