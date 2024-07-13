@@ -7,6 +7,9 @@
 
 #define RXp2 16
 #define TXp2 17
+long timezone = -3;
+byte daysavetime = 1;
+struct tm timeInfo;
 JsonDocument doc;
 float batteryVoltage, current;
 ////////////////////////////////////////////////////////
@@ -18,6 +21,7 @@ const char* password = "";//use your password
 const char* mqtt_server = "broker.mqtt-dashboard.com";
 const int mqtt_port = 1883;
 const int MQTT_BUFFER_LENGTH=500;
+const char* MQTT_TOPIC = "test";
 ////////////////////////////////////
 /* Broker Communication Variables */
 ////////////////////////////////////
@@ -27,7 +31,8 @@ unsigned long lastMsg = 0;
 #define MSG_BUFFER_SIZE (50)
 char msg[MSG_BUFFER_SIZE];
 const int maxReconnectionAttempts = 5;
-const int SERIALBR = 9600
+const int SERIALBR = 9600;
+char timeStr[30];
 
 // this sample code provided by www.programmingboss.com
 void setup() {
@@ -37,6 +42,26 @@ void setup() {
   setDateTime();
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
+}
+  
+void setDateTime() {
+  // You can use your own timezone, but the exact time is not used at all.
+  // Only the date is needed for validating the certificates.
+  configTime(3600 * timezone, daysavetime * 3600, "time.nist.gov", "0.pool.ntp.org", "1.pool.ntp.org");
+  // America/Sao_Paulo, "pool.ntp.org", "time.nist.gov"
+
+  Serial.print("Waiting for NTP time sync: ");
+  time_t nowe = time(nullptr);
+  while (nowe < 8 * 3600 * 2) {
+    delay(100);
+    Serial.print(".");
+    nowe = time(nullptr);
+  }
+  Serial.println();
+
+  struct tm timeinfo;
+  gmtime_r(&nowe, &timeinfo);
+  Serial.printf("%s %s", tzname[0], asctime(&timeinfo));
 }
 
 void setup_wifi() {
@@ -60,25 +85,6 @@ void setup_wifi() {
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
-}
-
-void setDateTime() {
-  // You can use your own timezone, but the exact time is not used at all.
-  // Only the date is needed for validating the certificates.
-  configTime(America/Sao_Paulo, "pool.ntp.org", "time.nist.gov");
-
-  Serial.print("Waiting for NTP time sync: ");
-  time_t nowe = time(nullptr);
-  while (nowe < 8 * 3600 * 2) {
-    delay(100);
-    Serial.print(".");
-    nowe = time(nullptr);
-  }
-  Serial.println();
-
-  struct tm timeinfo;
-  gmtime_r(&nowe, &timeinfo);
-  Serial.printf("%s %s", tzname[0], asctime(&timeinfo));
 }
 
 // Check for Message received on define topic for MQTT Broker
@@ -125,10 +131,11 @@ void sendMQTT(float voltage, float current) {
   
     JSONencode["Voltage"]=voltage;
     JSONencode["Current"]=current;
-  
-    char time[30];
-    snprintf(time,30,"%d-%d-%dT%d:%d:%dZ-0300",year(),month(),day(),hour(),minute(),second());
-    JSONencode["time"]=time;
+
+
+    getLocalTime(&timeInfo);
+    snprintf(timeStr,30,"%d-%d-%dT%d:%d:%dZ-0300",timeInfo.tm_year+1900,timeInfo.tm_mon+1,timeInfo.tm_mday,timeInfo.tm_hour,timeInfo.tm_min,timeInfo.tm_sec);
+    JSONencode["time"]=timeStr;
   
     String JSONmessageBuffer;
     serializeJson(JSONencode,JSONmessageBuffer);
@@ -136,7 +143,7 @@ void sendMQTT(float voltage, float current) {
     Serial.println("Publishing message");
     char Buffer[MQTT_BUFFER_LENGTH];
     JSONmessageBuffer.toCharArray(Buffer,MQTT_BUFFER_LENGTH);
-    client->publish(MQTT_TOPIC, Buffer); 
+    client.publish(MQTT_TOPIC, Buffer); 
 }
 
 void loop() {
@@ -146,33 +153,26 @@ void loop() {
     }
     if (!client.connected()) {
       delay(1000);
-      Serial.println("Could not restablish connection");
-      continue;
+      Serial.println("000");
+      return;
     }
     
     unsigned long now = millis();
     if (now - lastMsg > 2000){
-    
+      int n;
       lastMsg = now;
       Serial.println("reading...");
       deserializeJson(doc, Serial2.readString());
-      current = doc["Current"];
-      batteryVoltage = doc["Voltage"];
-      Serial.println("trying to publish");
-      Serial.print("Current:");
-      Serial.println(current);
-      Serial.print("Battery Voltage:");
-      Serial.println(batteryVoltage);
-      
-      snprintf (msg, MSG_BUFFER_SIZE, "Data: %g, %g", current, batteryVoltage);
-      Serial.print("Publish message: ");
-      Serial.println(msg);
-      client.publish("VSTest", msg);
-      Serial2.println("Successfull read!");
-
-      sendMQTT(batteryVoltage,current);
-      
-      
-      delay(1000);
-    }
+      n = doc["n messages"];
+      n = n - 1;
+      // loop sending messages
+      JsonDocument d;
+      for (int i = 0; i < n; i++) {
+        d = doc[i];
+        sendMQTT(d["Current"], d["Voltage"]);
+      }
+      d = doc[n];
+      sendMQTT(d["Current"], d["Voltage"]);
+      //delay(1000);
+  }
 }
