@@ -4,6 +4,8 @@
 #include <SD.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <TinyGPSPlus.h>
+#include <SoftwareSerial.h>
 
 #define RXp2 16
 #define TXp2 17
@@ -12,7 +14,7 @@
 /* Variables and Consts for current and voltage reads */
 ////////////////////////////////////////////////////////
 int analogValue;
-float shuntVoltage, batteryVoltage, current, temperature, vel;
+float shuntVoltage, batteryVoltage, current, temperature, spd;
 const float c0 = 1 / (40.0 * 0.1);
 const float c1 = 5 / 1024;
 const float R = 3;
@@ -23,13 +25,14 @@ LiquidCrystal_I2C lcd(0x27,16,4);
 char values[16];
 String s, s0;
 char char0[5];
-float* addresses[3] = {&batteryVoltage, &current, &vel};
+float* addresses[3] = {&batteryVoltage, &current, &spd};
 ////////////////////////////////
 /* Message struct declaration */
 ////////////////////////////////
 struct message 
 {
   float voltage, current, temperature;
+  char time[30];
 };
 JsonDocument doc;
 File msgQueue;
@@ -108,7 +111,6 @@ void loop() {
     // reads queued messages into buffer
     int msgSize = sizeof(message);
     int flag;
-    JsonDocument d[queueSize+1];
     message buffer[queueSize];
     msgQueue = SD.open("q.txt", FILE_READ);
     flag = msgQueue.seek(lastSentMessage * msgSize);
@@ -120,31 +122,31 @@ void loop() {
     doc["n messages"] = queueSize + 1;
     // TODO - treat data and serialize to ESP32
     for (int i = 0; i < queueSize; i++) {
-      d[i]["Current"] = buffer[i].current;
-      d[i]["Voltage"] = buffer[i].voltage;
-      d[i]["Temperature"] = buffer[i].temperature;
-      doc[i] = d[i];
+      doc[i]["Current"] = buffer[i].current;
+      doc[i]["Voltage"] = buffer[i].voltage;
+      doc[i]["Temperature"] = buffer[i].temperature;
+      doc[i]["time"] = buffer[i].time;
     }
-    d[queueSize]["Current"] = current;
-    d[queueSize]["Voltage"] = batteryVoltage;
-    doc[queueSize] = d[queueSize];
+    doc[queueSize]["Current"] = current;
+    doc[queueSize]["Voltage"] = batteryVoltage;
     serializeJson(doc, Serial2);
     msgQueue.close();
   } else {
     JsonDocument d;
-    d["Current"] = current;
-    d["Voltage"] = batteryVoltage;
+    doc[0]["Current"] = current;
+    doc[0]["Voltage"] = batteryVoltage;
     doc["n messages"] = 1;
-    doc[0] = d;
     serializeJson(doc, Serial2);
   }
   serialStr = Serial2.readString();
   // adding message to log
   if (serialStr == "000") {
     int flag;
+    serialStr = Serial2.readString();
     msg.current = current;
     msg.voltage = batteryVoltage;
     msg.temperature = temperature;
+    serialStr.toCharArray(msg.time, 30);
     // acces msg as bytes
     buff = (byte *) &msg;
     msgQueue = SD.open("q.txt", FILE_WRITE);
@@ -159,6 +161,8 @@ void loop() {
     msgQueue.write(buff, sizeof(message));
     queueSize++;
     msgQueue.close();
+  } else {
+    lastSentMessage = queueSize;
+    queueSize = 0;    
   }
-  delay(1000);
 }
