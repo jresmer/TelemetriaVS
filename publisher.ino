@@ -130,11 +130,12 @@ void reconnect() {
   }
 }
 
-void sendMQTT(float voltage, float current, const char* t) {
+void sendMQTT(float voltage, float current, const char* t, const char* lat, const char* lng, bool locIsValid) {
     JsonDocument JSONencode;
   
     JSONencode["Voltage"] = voltage;
     JSONencode["Current"] = current;
+    // TODO - encode location
     JSONencode["time"] = t;
   
     String JSONmessageBuffer;
@@ -169,9 +170,9 @@ void loop() {
       n = n - 1;
       // loop sending messages
       for (int i = 0; i < n; i++) {
-        sendMQTT(doc[i]["Current"], doc[i]["Voltage"], doc[i]["time"]);
+        sendMQTT(doc[i]["Current"], doc[i]["Voltage"], doc[i]["time"], doc[i]["lat"], doc[i]["lng"], doc[i]["locIsValid"]);
       }
       updateTimeBuff();
-      sendMQTT(doc[n]["Current"], doc[n]["Voltage"], timeBuff);
+      sendMQTT(doc[n]["Current"], doc[n]["Voltage"], timeBuff, doc[i]["lat"], doc[i]["lng"], doc[i]["locIsValid"]);
   }
 }
