@@ -5,11 +5,11 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <TinyGPSPlus.h>
-#include <SoftwareSerial.h>
 
 #define RXp2 16
 #define TXp2 17
-
+#define RXp2 14
+#define TXp2 15
 ////////////////////////////////////////////////////////
 /* Variables and Consts for current and voltage reads */
 ////////////////////////////////////////////////////////
@@ -32,8 +32,14 @@ float* addresses[3] = {&batteryVoltage, &current, &spd};
 struct message 
 {
   float voltage, current, temperature;
+  bool locationIsValid;
+  char lat[14];
+  char lng[14];
   char time[30];
 };
+////////////////////////////////////////////////////
+/* Json and SD libs variables and aux declaration */
+////////////////////////////////////////////////////
 JsonDocument doc;
 File msgQueue;
 String serialStr;
@@ -42,6 +48,15 @@ int lastSentMessage = 0;
 message msg;
 message copyto;
 byte *buff;
+////////////////////////////////////////////////////
+/* GPS headers and and data variables declaration */
+////////////////////////////////////////////////////
+const uint32_t GPS_BAUD = 9600; // Default baud of NEO-6M is 9600
+const uint32_t GPS_DELAY = 1000;
+double llat, llng;
+char lat[14], lng[14];
+time_t gpsNow;
+TinyGPSPlus gps; // The tinyGPS object
 
 void setup() {
 
@@ -49,11 +64,12 @@ void setup() {
   pinMode(A1, INPUT);
   Serial.begin(9600);
   Serial2.begin(9600);
+  Serial3.begin(GPS_BAUD);
   lcd.init();
   lcd.setBacklight(HIGH);
   // writes the value labels on display
   lcd.setCursor(0,0);
-  lcd.print("Tens Corr Vel");
+  lcd.print("Tens Corr Velc");
   if (!SD.begin(4)) {
     Serial.println("initialization failed!");
     while (1);
@@ -79,6 +95,19 @@ void updateVoltage() {
   float voltageDivider = analogValue * c1;
   batteryVoltage = voltageDivider * R;
 }
+
+void updateGPSRead() {
+
+  // TODO - double check Serial3.read() - might have to read each byte
+  while (Serial3.available()) {
+    if (gps.encode(Serial3.read()) {
+      lat = gps.location.lat();
+      lng = gps.location.lng();
+      spd = gps.speed.kmph();
+      if (gps.speed.isValid())
+        spd = -1;
+    }
+}
 /////////////////////////////////////////////////////////////////
 /* Reads all sensor values and attributes them to the buffer b */
 /* b's is a parameter passed through reference to the function */
@@ -88,6 +117,7 @@ void updateReads() {
   updateVoltage();
   updateCurrent();
   updateTemp();
+  updateGPSRead();
 }
 
 void formatDisplayData() {
@@ -125,16 +155,27 @@ void loop() {
       doc[i]["Current"] = buffer[i].current;
       doc[i]["Voltage"] = buffer[i].voltage;
       doc[i]["Temperature"] = buffer[i].temperature;
+      doc[queueSize]["locIsValid"] = buffer[i].locationIsValid;
+      doc[i]["lat"] = buffer[i].lat;
+      doc[i]["lng"] = buffer[i].lng;
       doc[i]["time"] = buffer[i].time;
     }
     doc[queueSize]["Current"] = current;
     doc[queueSize]["Voltage"] = batteryVoltage;
-    serializeJson(doc, Serial2);
+    doc[queueSize]["Temperature"] = temperature;
+    doc[queueSize]["lat"] = lat;
+    doc[queueSize]["lng"] = lng;
+    doc[queueSize]["locIsValid"] = gps.location.isValid();
     msgQueue.close();
+    serializeJson(doc, Serial2);
   } else {
     JsonDocument d;
     doc[0]["Current"] = current;
     doc[0]["Voltage"] = batteryVoltage;
+    doc[0]["Temperature"] = temperature;
+    doc[0]["lat"] = lat;
+    doc[0]["lng"] = lng;
+    doc[0]["locIsValid"] = gps.location.isValid();
     doc["n messages"] = 1;
     serializeJson(doc, Serial2);
   }
@@ -146,6 +187,10 @@ void loop() {
     msg.current = current;
     msg.voltage = batteryVoltage;
     msg.temperature = temperature;
+    msg.spd = spd;
+    msg.lat = lat;
+    msg.lng = lng;
+    msg.locationIsValid = gps.location.isValid();
     serialStr.toCharArray(msg.time, 30);
     // acces msg as bytes
     buff = (byte *) &msg;
@@ -165,4 +210,5 @@ void loop() {
     lastSentMessage = queueSize;
     queueSize = 0;    
   }
+  delay(1000);
 }
