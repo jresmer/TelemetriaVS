@@ -68,6 +68,7 @@ void loop() {
   aux = current;
   csvRow = aux + ",";
   coefCSV.println(csvRow);
+  coefCSV.close();
 
   delay(1000);
 }
