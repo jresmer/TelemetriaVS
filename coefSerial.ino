@@ -1,6 +1,3 @@
-#include <SD.h>
-#include <Wire.h>
-
 ////////////////////////////////////////////////////////
 /* Variables and Consts for current and voltage reads */
 ////////////////////////////////////////////////////////
@@ -13,17 +10,11 @@ const float due = 3.3 / 4095.0;
 const float resiShunt = 0.0001; // resistênica do shunt
 const float c1 = 4.0217391304; // fator de correção da tensão 
 
-Thermistor temp(2);
-
-#define RXp2 16
-#define TXp2 17
-
 void setup() {
 
   pinMode(A0, INPUT);
   pinMode(A1, INPUT);
   Serial.begin(9600);
-  Serial2.begin(9600);
   if (!SD.begin(4)) {
     Serial.println("initialization failed!");
     while (1);
@@ -63,11 +54,8 @@ void loop() {
 
   // write in SD
   String csvRow;
-  String aux;
-  File coefCSV = SD.open("coef0.csv", FILE_WRITE);
-  aux = current;
-  csvRow = aux + ",";
-  coefCSV.println(csvRow);
+  csvRow = current;
+  Serial.println(csvRow);
 
   delay(1000);
 }
