@@ -4,7 +4,6 @@
 #include "WiFi.h"
 #include <time.h>
 
-
 #define RXp2 16
 #define TXp2 17
 long timezone = -3;
@@ -32,7 +31,7 @@ unsigned long lastMsg = 0;
 char msg[MSG_BUFFER_SIZE];
 const int maxReconnectionAttempts = 5;
 const int SERIALBR = 9600;
-char timeStr[30];
+char timeBuff[30];
 
 // this sample code provided by www.programmingboss.com
 void setup() {
@@ -62,6 +61,11 @@ void setDateTime() {
   struct tm timeinfo;
   gmtime_r(&nowe, &timeinfo);
   Serial.printf("%s %s", tzname[0], asctime(&timeinfo));
+}
+
+void updateTimeBuff() {
+  getLocalTime(&timeInfo);
+  snprintf(timeBuff,30,"%d-%d-%dT%d:%d:%dZ-0300",timeInfo.tm_year+1900,timeInfo.tm_mon+1,timeInfo.tm_mday,timeInfo.tm_hour,timeInfo.tm_min,timeInfo.tm_sec);
 }
 
 void setup_wifi() {
@@ -126,16 +130,12 @@ void reconnect() {
   }
 }
 
-void sendMQTT(float voltage, float current) {
+void sendMQTT(float voltage, float current, const char* t) {
     JsonDocument JSONencode;
   
-    JSONencode["Voltage"]=voltage;
-    JSONencode["Current"]=current;
-
-
-    getLocalTime(&timeInfo);
-    snprintf(timeStr,30,"%d-%d-%dT%d:%d:%dZ-0300",timeInfo.tm_year+1900,timeInfo.tm_mon+1,timeInfo.tm_mday,timeInfo.tm_hour,timeInfo.tm_min,timeInfo.tm_sec);
-    JSONencode["time"]=timeStr;
+    JSONencode["Voltage"] = voltage;
+    JSONencode["Current"] = current;
+    JSONencode["time"] = t;
   
     String JSONmessageBuffer;
     serializeJson(JSONencode,JSONmessageBuffer);
@@ -154,6 +154,8 @@ void loop() {
     if (!client.connected()) {
       delay(1000);
       Serial.println("000");
+      updateTimeBuff();
+      Serial.println(timeBuff);
       return;
     }
     
@@ -166,13 +168,10 @@ void loop() {
       n = doc["n messages"];
       n = n - 1;
       // loop sending messages
-      JsonDocument d;
       for (int i = 0; i < n; i++) {
-        d = doc[i];
-        sendMQTT(d["Current"], d["Voltage"]);
+        sendMQTT(doc[i]["Current"], doc[i]["Voltage"], doc[i]["time"]);
       }
-      d = doc[n];
-      sendMQTT(d["Current"], d["Voltage"]);
-      //delay(1000);
+      updateTimeBuff();
+      sendMQTT(doc[n]["Current"], doc[n]["Voltage"], timeBuff);
   }
 }
