@@ -131,17 +131,29 @@ void reconnect() {
 }
 
 void sendMQTT(float voltage, float current, const char* t, const char* lat, const char* lng, bool locIsValid) {
+    if (locIsValid) {
+      JsonDocument JSONencode;
+      JSONencode["variable"]="location";
+      JSONencode["value"]="VentoSulDevice";
+      JSONencode["location"]["type"]="Point";
+      JSONencode["location"]["coordinates"][0]=lat;
+      JSONencode["location"]["coordinates"][1]=lng;
+
+      String JSONmessageBuffer;
+      serializeJson(JSONencode,JSONmessageBuffer);
+      char Buffer[MQTT_BUFFER_LENGTH];
+      JSONmessageBuffer.toCharArray(Buffer,MQTT_BUFFER_LENGTH);
+      client.publish(MQTT_TOPIC, Buffer);
+
+    } 
     JsonDocument JSONencode;
-  
     JSONencode["Voltage"] = voltage;
     JSONencode["Current"] = current;
-    // TODO - encode location
     JSONencode["time"] = t;
   
     String JSONmessageBuffer;
     serializeJson(JSONencode,JSONmessageBuffer);
-    Serial.println(JSONmessageBuffer);
-    Serial.println("Publishing message");
+    // Serial.println("Publishing message");
     char Buffer[MQTT_BUFFER_LENGTH];
     JSONmessageBuffer.toCharArray(Buffer,MQTT_BUFFER_LENGTH);
     client.publish(MQTT_TOPIC, Buffer); 
@@ -173,6 +185,6 @@ void loop() {
         sendMQTT(doc[i]["Current"], doc[i]["Voltage"], doc[i]["time"], doc[i]["lat"], doc[i]["lng"], doc[i]["locIsValid"]);
       }
       updateTimeBuff();
-      sendMQTT(doc[n]["Current"], doc[n]["Voltage"], timeBuff, doc[i]["lat"], doc[i]["lng"], doc[i]["locIsValid"]);
+      sendMQTT(doc[n]["Current"], doc[n]["Voltage"], timeBuff, doc[n]["lat"], doc[n]["lng"], doc[n]["locIsValid"]);
   }
 }
