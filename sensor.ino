@@ -8,8 +8,8 @@
 
 #define RXp2 16
 #define TXp2 17
-#define RXp2 14
-#define TXp2 15
+#define RXp3 14
+#define TXp3 15
 ////////////////////////////////////////////////////////
 /* Variables and Consts for current and voltage reads */
 ////////////////////////////////////////////////////////
@@ -100,13 +100,14 @@ void updateGPSRead() {
 
   // TODO - double check Serial3.read() - might have to read each byte
   while (Serial3.available()) {
-    if (gps.encode(Serial3.read()) {
-      lat = gps.location.lat();
-      lng = gps.location.lng();
+    if (gps.encode(Serial3.read())) {
+      snprintf(lat, 14, "%.10f",gps.location.lat());
+      snprintf(lng, 14, "%.10f",gps.location.lng());
       spd = gps.speed.kmph();
       if (gps.speed.isValid())
         spd = -1;
     }
+  } 
 }
 /////////////////////////////////////////////////////////////////
 /* Reads all sensor values and attributes them to the buffer b */
@@ -187,9 +188,8 @@ void loop() {
     msg.current = current;
     msg.voltage = batteryVoltage;
     msg.temperature = temperature;
-    msg.spd = spd;
-    msg.lat = lat;
-    msg.lng = lng;
+    snprintf(msg.lat, 14, lat);
+    snprintf(msg.lng, 14, lng);
     msg.locationIsValid = gps.location.isValid();
     serialStr.toCharArray(msg.time, 30);
     // acces msg as bytes
