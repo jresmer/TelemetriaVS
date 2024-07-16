@@ -1,15 +1,17 @@
 #include <ArduinoJson.h>
-#include <Arduino.h>
 #include <SPI.h>
-#include <SD.h>
-#include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <TinyGPSPlus.h>
+#include <SoftwareSerial.h>
 
-#define RXp2 16
-#define TXp2 17
-#define RXp3 14
-#define TXp3 15
+/////////////////////
+/* Pin declaration */
+/////////////////////
+const int currentPin = A0;
+const int voltagePin = A1;
+const int temperaturePin = A2;
+const int RX_PIN, TX_PIN;
+SoftwareSerial GPSSerial(RX_PIN, TX_PIN);
 ////////////////////////////////////////////////////////
 /* Variables and Consts for current and voltage reads */
 ////////////////////////////////////////////////////////
@@ -23,7 +25,7 @@ const float R = 3;
 //////////////////////////////////
 LiquidCrystal_I2C lcd(0x27,16,4);
 char values[16];
-String s, s0;
+String s;
 char char0[5];
 float* addresses[3] = {&batteryVoltage, &current, &spd};
 ////////////////////////////////
@@ -37,17 +39,14 @@ struct message
   char lng[14];
   char time[30];
 };
-////////////////////////////////////////////////////
-/* Json and SD libs variables and aux declaration */
-////////////////////////////////////////////////////
+////////////////////////////////////////////
+/* Json lib variables and aux declaration */
+////////////////////////////////////////////
 JsonDocument doc;
-File msgQueue;
-String serialStr;
-int queueSize = 0;
-int lastSentMessage = 0;
-message msg;
-message copyto;
-byte *buff;
+short int qStart = 0;
+short int qEnd = -1;
+bool lastMsgSuccess = true;
+message msgQueue[12];
 ////////////////////////////////////////////////////
 /* GPS headers and and data variables declaration */
 ////////////////////////////////////////////////////
@@ -55,43 +54,39 @@ const uint32_t GPS_BAUD = 9600; // Default baud of NEO-6M is 9600
 const uint32_t GPS_DELAY = 1000;
 double llat, llng;
 char lat[14], lng[14];
-time_t gpsNow;
 TinyGPSPlus gps; // The tinyGPS object
 
 void setup() {
 
-  pinMode(A0, INPUT);
-  pinMode(A1, INPUT);
+  pinMode(currentPin, INPUT);
+  pinMode(voltagePin, INPUT);
+  pinMode(temperaturePin, INPUT);
   Serial.begin(9600);
-  Serial2.begin(9600);
-  Serial3.begin(GPS_BAUD);
+  GPSSerial.begin(GPS_BAUD);
   lcd.init();
   lcd.setBacklight(HIGH);
   // writes the value labels on display
   lcd.setCursor(0,0);
   lcd.print("Tens Corr Velc");
-  if (!SD.begin(4)) {
-    Serial.println("initialization failed!");
-    while (1);
-  }
-  Serial.println("initialization done.");
 }
 
 void updateTemp() {
-  // TODO
-  temperature = 42.3 + rand() % 10;
+  
+  int readValue = analogRead(temperaturePin);
+  readValue = readValue * 488;
+  temperature = readValue / 1000;
 }
 
 void updateCurrent() {
 
-  analogValue = analogRead(A0);
+  analogValue = analogRead(currentPin);
   shuntVoltage = analogValue * c1;
   current = shuntVoltage * c0;
 }
 
 void updateVoltage() {
 
-  analogValue = analogRead(A1);
+  analogValue = analogRead(voltagePin);
   float voltageDivider = analogValue * c1;
   batteryVoltage = voltageDivider * R;
 }
@@ -99,8 +94,8 @@ void updateVoltage() {
 void updateGPSRead() {
 
   // TODO - double check Serial3.read() - might have to read each byte
-  while (Serial3.available()) {
-    if (gps.encode(Serial3.read())) {
+  while (GPSSerial.available()) {
+    if (gps.encode(GPSSerial.read())) {
       snprintf(lat, 14, "%.10f",gps.location.lat());
       snprintf(lng, 14, "%.10f",gps.location.lng());
       spd = gps.speed.kmph();
@@ -123,6 +118,7 @@ void updateReads() {
 
 void formatDisplayData() {
   // formating datas
+  String s0;
   s = "";
   for (int i = 0; i < 3; i++) {
     s0 = *(addresses[i]);
@@ -138,77 +134,45 @@ void loop() {
   formatDisplayData();
   lcd.setCursor(0,1);
   lcd.print(s);
-  if (queueSize) {
-    // reads queued messages into buffer
-    int msgSize = sizeof(message);
-    int flag;
-    message buffer[queueSize];
-    msgQueue = SD.open("q.txt", FILE_READ);
-    flag = msgQueue.seek(lastSentMessage * msgSize);
-    if (!flag) {
-      Serial.println("Failed to seek ");
-      return;
-    }
-    msgQueue.read(buffer, queueSize * msgSize);
-    doc["n messages"] = queueSize + 1;
-    // TODO - treat data and serialize to ESP32
-    for (int i = 0; i < queueSize; i++) {
-      doc[i]["Current"] = buffer[i].current;
-      doc[i]["Voltage"] = buffer[i].voltage;
-      doc[i]["Temperature"] = buffer[i].temperature;
-      doc[queueSize]["locIsValid"] = buffer[i].locationIsValid;
-      doc[i]["lat"] = buffer[i].lat;
-      doc[i]["lng"] = buffer[i].lng;
-      doc[i]["time"] = buffer[i].time;
-    }
-    doc[queueSize]["Current"] = current;
-    doc[queueSize]["Voltage"] = batteryVoltage;
-    doc[queueSize]["Temperature"] = temperature;
-    doc[queueSize]["lat"] = lat;
-    doc[queueSize]["lng"] = lng;
-    doc[queueSize]["locIsValid"] = gps.location.isValid();
-    msgQueue.close();
-    serializeJson(doc, Serial2);
-  } else {
-    JsonDocument d;
-    doc[0]["Current"] = current;
-    doc[0]["Voltage"] = batteryVoltage;
-    doc[0]["Temperature"] = temperature;
-    doc[0]["lat"] = lat;
-    doc[0]["lng"] = lng;
-    doc[0]["locIsValid"] = gps.location.isValid();
-    doc["n messages"] = 1;
-    serializeJson(doc, Serial2);
+  int n_msgs = 0;
+  if (!lastMsgSuccess) {
+    short int end = (qEnd + 1) % 12;
+    do {
+      doc[n_msgs]["Current"] = msgQueue[qStart].current;
+      doc[n_msgs]["Voltage"] = msgQueue[qStart].voltage;
+      doc[n_msgs]["Temperature"] = msgQueue[qStart].temperature;
+      doc[n_msgs]["lat"] = msgQueue[qStart].lat;
+      doc[n_msgs]["lng"] = msgQueue[qStart].lng;
+      doc[n_msgs]["locIsValid"] = msgQueue[qStart].locationIsValid;
+      doc[n_msgs]["time"] = msgQueue[qStart].time;
+      n_msgs++;
+      qStart = (qStart + 1) % 12;
+    } while (qStart != end);
   }
-  serialStr = Serial2.readString();
+  doc[n_msgs-1]["Current"] = current;
+  doc[n_msgs-1]["Voltage"] = batteryVoltage;
+  doc[n_msgs-1]["Temperature"] = temperature;
+  doc[n_msgs-1]["lat"] = lat;
+  doc[n_msgs-1]["lng"] = lng;
+  doc[n_msgs-1]["locIsValid"] = gps.location.isValid();
+  doc["n messages"] = n_msgs + 1;
+  serializeJson(doc, Serial);
+  lastMsgSuccess = true;
+  String serialStr = Serial.readString();
   // adding message to log
   if (serialStr == "000") {
-    int flag;
-    serialStr = Serial2.readString();
-    msg.current = current;
-    msg.voltage = batteryVoltage;
-    msg.temperature = temperature;
-    snprintf(msg.lat, 14, lat);
-    snprintf(msg.lng, 14, lng);
-    msg.locationIsValid = gps.location.isValid();
-    serialStr.toCharArray(msg.time, 30);
-    // acces msg as bytes
-    buff = (byte *) &msg;
-    msgQueue = SD.open("q.txt", FILE_WRITE);
-    // if file fails to open continue
-    if (!msgQueue)
-      return;
-    flag = msgQueue.seek((lastSentMessage + queueSize) * sizeof(message));
-    if (!flag) {
-      Serial.println("Failed to seek ");
-      return;
-    }
-    msgQueue.write(buff, sizeof(message));
-    queueSize++;
-    msgQueue.close();
-  } else {
-    lastSentMessage = queueSize;
-    queueSize = 0;    
-  }
+    lastMsgSuccess = false;
+    qEnd = (qEnd + 1) % 12;
+    if (qEnd == qStart)
+      qStart = (qStart + 1) % 12;
+    serialStr = Serial.readString();
+    msgQueue[qEnd].current = current;
+    msgQueue[qEnd].voltage = batteryVoltage;
+    msgQueue[qEnd].temperature = temperature;
+    snprintf(msgQueue[qEnd].lat, 14, lat);
+    snprintf(msgQueue[qEnd].lng, 14, lng);
+    msgQueue[qEnd].locationIsValid = gps.location.isValid();
+    serialStr.toCharArray(msgQueue[qEnd].time, 30);
+  } 
   delay(1000);
 }
