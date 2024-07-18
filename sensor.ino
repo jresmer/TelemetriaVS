@@ -25,9 +25,6 @@ const float R = 3;
 //////////////////////////////////
 LiquidCrystal_I2C lcd(0x27,16,4);
 char values[16];
-String s;
-char char0[5];
-float* addresses[3] = {&batteryVoltage, &current, &spd};
 ////////////////////////////////
 /* Message struct declaration */
 ////////////////////////////////
@@ -118,14 +115,15 @@ void updateReads() {
 
 void formatDisplayData() {
   // formating datas
-  String s0;
-  s = "";
-  for (int i = 0; i < 3; i++) {
-    s0 = *(addresses[i]);
-    s0.toCharArray(char0, 5);
-    String s1(s0);
-    s = s + " " + s1;
-  }
+  char curr[5], speed[5], volt[5];
+  dtostrf(current, 5, 0, curr);
+  dtostrf(spd, 5, 0, speed);
+  dtostrf(batteryVoltage, 5, 0, volt);
+  strcpy(values, volt);
+  strcat(values, " ");
+  strcat(values, curr);
+  strcat(values, " ");
+  strcat(values, speed);
 }
 
 void loop() {
@@ -133,7 +131,7 @@ void loop() {
   updateReads();
   formatDisplayData();
   lcd.setCursor(0,1);
-  lcd.print(s);
+  lcd.print(values);
   int n_msgs = 0;
   if (!lastMsgSuccess) {
     short int end = (qEnd + 1) % 12;
@@ -177,5 +175,5 @@ void loop() {
   } else {
     qStart = (qEnd + 1) % 12;
   }
-  delay(1000);
+  delay(2000);
 }
