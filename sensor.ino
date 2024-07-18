@@ -137,6 +137,7 @@ void loop() {
   int n_msgs = 0;
   if (!lastMsgSuccess) {
     short int end = (qEnd + 1) % 12;
+    short int start = qStart;
     do {
       doc[n_msgs]["Current"] = msgQueue[qStart].current;
       doc[n_msgs]["Voltage"] = msgQueue[qStart].voltage;
@@ -146,8 +147,8 @@ void loop() {
       doc[n_msgs]["locIsValid"] = msgQueue[qStart].locationIsValid;
       doc[n_msgs]["time"] = msgQueue[qStart].time;
       n_msgs++;
-      qStart = (qStart + 1) % 12;
-    } while (qStart != end);
+      start = (start + 1) % 12;
+    } while (start != end);
   }
   doc[n_msgs-1]["Current"] = current;
   doc[n_msgs-1]["Voltage"] = batteryVoltage;
@@ -173,6 +174,8 @@ void loop() {
     snprintf(msgQueue[qEnd].lng, 14, lng);
     msgQueue[qEnd].locationIsValid = gps.location.isValid();
     serialStr.toCharArray(msgQueue[qEnd].time, 30);
-  } 
+  } else {
+    qStart = (qEnd + 1) % 12;
+  }
   delay(1000);
 }
