@@ -151,7 +151,7 @@ void loop() {
     doc["n messages"] = queueSize + 1;
     // TODO - treat data and serialize to ESP32
     for (int i = 0; i < queueSize; i++) {
-      msgQueue.read((message *) &copyto, queueSize * msgSize);
+      msgQueue.read((byte *) &copyto, queueSize * msgSize);
       doc[i+1]["Current"] = copyto.current;
       doc[i+1]["Voltage"] = copyto.voltage;
       doc[i+1]["Temperature"] = copyto.temperature;
