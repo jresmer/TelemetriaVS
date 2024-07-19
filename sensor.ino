@@ -16,7 +16,7 @@ SoftwareSerial GPSSerial(RX_PIN, TX_PIN);
 /* Variables and Consts for current and voltage reads */
 ////////////////////////////////////////////////////////
 int analogValue;
-float shuntVoltage, batteryVoltage, current, temperature, spd;
+float shuntVoltage, batteryVoltage, current, temperature, spd, pw, soc;
 const float c0 = 1 / (40.0 * 0.1);
 const float c1 = 5 / 1024;
 const float R = 3;
@@ -24,7 +24,6 @@ const float R = 3;
 /* Display management variables */
 //////////////////////////////////
 LiquidCrystal_I2C lcd(0x27,16,4);
-char values[16];
 ////////////////////////////////
 /* Message struct declaration */
 ////////////////////////////////
@@ -67,30 +66,25 @@ void setup() {
   lcd.print("Tens Corr Velc");
 }
 
-void updateTemp() {
-  
-  int readValue = analogRead(temperaturePin);
-  readValue = readValue * 488;
-  temperature = readValue / 1000;
-}
+/////////////////////////////////////////////////////////////////
+/* Reads all sensor values and attributes them to the buffer b */
+/* b's is a parameter passed through reference to the function */
+/////////////////////////////////////////////////////////////////
+void updateReads() {
 
-void updateCurrent() {
-
-  analogValue = analogRead(currentPin);
-  shuntVoltage = analogValue * c1;
-  current = shuntVoltage * c0;
-}
-
-void updateVoltage() {
-
+  // updating voltage
   analogValue = analogRead(voltagePin);
   float voltageDivider = analogValue * c1;
   batteryVoltage = voltageDivider * R;
-}
-
-void updateGPSRead() {
-
-  // TODO - double check Serial3.read() - might have to read each byte
+  // updating current
+  analogValue = analogRead(currentPin);
+  shuntVoltage = analogValue * c1;
+  current = shuntVoltage * c0;
+  // updating temperature
+  int readValue = analogRead(temperaturePin);
+  readValue = readValue * 488;
+  temperature = readValue / 1000;
+  // updating GPS data
   while (GPSSerial.available()) {
     if (gps.encode(GPSSerial.read())) {
       snprintf(lat, 14, "%.10f",gps.location.lat());
@@ -100,36 +94,26 @@ void updateGPSRead() {
         spd = -1;
     }
   } 
-}
-/////////////////////////////////////////////////////////////////
-/* Reads all sensor values and attributes them to the buffer b */
-/* b's is a parameter passed through reference to the function */
-/////////////////////////////////////////////////////////////////
-void updateReads() {
-
-  updateVoltage();
-  updateCurrent();
-  updateTemp();
-  updateGPSRead();
-}
-
-void formatDisplayData() {
-  // formating datas
-  char curr[5], speed[5], volt[5];
-  dtostrf(current, 5, 0, curr);
-  dtostrf(spd, 5, 0, speed);
-  dtostrf(batteryVoltage, 5, 0, volt);
-  strcpy(values, volt);
-  strcat(values, " ");
-  strcat(values, curr);
-  strcat(values, " ");
-  strcat(values, speed);
+  // updating power
+  pw = batteryVoltage * current;
+  // updating SoC
+  
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   updateReads();
-  formatDisplayData();
+  // formating display data
+  char values[16];
+  char curr[5], speed[5], volt[5];
+  dtostrf(current, 5,1, curr);
+  dtostrf(spd, 5, 1, speed);
+  dtostrf(batteryVoltage, 5, 1, volt);
+  strcpy(values, volt);
+  strcat(values, " ");
+  strcat(values, curr);
+  strcat(values, " ");
+  strcat(values, speed);
   lcd.setCursor(0,1);
   lcd.print(values);
   int n_msgs = 0;
