@@ -165,10 +165,13 @@ void loop() {
       reconnect();
     }
     if (!client.connected()) {
+      JsonDocument reply;
       delay(1000);
-      Serial.println("000");
+      reply["connectionStatus"] = "000";
+      serializeJson(reply, Serial2);
       updateTimeBuff();
-      Serial.println(timeBuff);
+      reply["time"] = timeBuff;
+      serializeJson(reply, Serial2);;
       return;
     }
     
@@ -177,7 +180,8 @@ void loop() {
       int n;
       lastMsg = now;
       Serial.println("reading...");
-      deserializeJson(doc, Serial2.readString());
+      while (!Serial2.available()) {}
+      deserializeJson(doc, Serial2);
       n = doc["n messages"];
       n = n - 1;
       // loop sending messages
