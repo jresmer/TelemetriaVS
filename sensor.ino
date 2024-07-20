@@ -15,11 +15,11 @@ SoftwareSerial GPSSerial(RX_PIN, TX_PIN);
 ////////////////////////////////////////////////////////
 /* Variables and Consts for current and voltage reads */
 ////////////////////////////////////////////////////////
-int analogValue;
+float analogValue;
 float shuntVoltage, batteryVoltage, current, temperature, spd, pw, soc;
 const float c0 = 1 / (40.0 * 0.1);
-const float c1 = 5 / 1024;
-const float R = 3;
+const float c1 = 5.0 / 1024.0;
+const float R = 0.1515;
 //////////////////////////////////
 /* Display management variables */
 //////////////////////////////////
@@ -76,15 +76,18 @@ void updateReads() {
   analogValue = analogRead(voltagePin);
   float voltageDivider = analogValue * c1;
   batteryVoltage = voltageDivider * R;
+  Serial.println(voltageDivider);
   // updating current
   analogValue = analogRead(currentPin);
   shuntVoltage = analogValue * c1;
   current = shuntVoltage * c0;
+  current = 1.974 + rand() % 10;
   // updating temperature
   int readValue = analogRead(temperaturePin);
   readValue = readValue * 488;
   temperature = readValue / 1000;
   // updating GPS data
+  spd = 8.253 + rand() % 5;
   while (GPSSerial.available()) {
     if (gps.encode(GPSSerial.read())) {
       snprintf(lat, 14, "%.10f",gps.location.lat());
@@ -93,7 +96,7 @@ void updateReads() {
       if (gps.speed.isValid())
         spd = -1;
     }
-  } 
+  }
   // updating power
   pw = batteryVoltage * current;
   // updating SoC
@@ -106,9 +109,11 @@ void loop() {
   // formating display data
   char values[16];
   char curr[5], speed[5], volt[5];
-  dtostrf(current, 5,1, curr);
-  dtostrf(spd, 5, 1, speed);
-  dtostrf(batteryVoltage, 5, 1, volt);
+  Serial.println(batteryVoltage);
+  dtostrf(current, 4, 1, curr);
+  dtostrf(spd, 4, 1, speed);
+  dtostrf(batteryVoltage, 4, 1, volt);
+  
   strcpy(values, volt);
   strcat(values, " ");
   strcat(values, curr);
@@ -116,6 +121,7 @@ void loop() {
   strcat(values, speed);
   lcd.setCursor(0,1);
   lcd.print(values);
+  Serial.println();
   int n_msgs = 0;
   if (!lastMsgSuccess) {
     short int end = (qEnd + 1) % 12;
@@ -141,7 +147,7 @@ void loop() {
   doc["n messages"] = n_msgs + 1;
   serializeJson(doc, Serial);
   lastMsgSuccess = true;
-  String serialStr = Serial.readString();
+  String serialStr = "oi";
   // adding message to log
   if (serialStr == "000") {
     lastMsgSuccess = false;
