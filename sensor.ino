@@ -76,18 +76,15 @@ void updateReads() {
   analogValue = analogRead(voltagePin);
   float voltageDivider = analogValue * c1;
   batteryVoltage = voltageDivider * R;
-  Serial.println(voltageDivider);
   // updating current
   analogValue = analogRead(currentPin);
   shuntVoltage = analogValue * c1;
   current = shuntVoltage * c0;
-  current = 1.974 + rand() % 10;
   // updating temperature
   int readValue = analogRead(temperaturePin);
   readValue = readValue * 488;
   temperature = readValue / 1000;
   // updating GPS data
-  spd = 8.253 + rand() % 5;
   while (GPSSerial.available()) {
     if (gps.encode(GPSSerial.read())) {
       snprintf(lat, 14, "%.10f",gps.location.lat());
@@ -138,23 +135,27 @@ void loop() {
       start = (start + 1) % 12;
     } while (start != end);
   }
-  doc[n_msgs-1]["Current"] = current;
-  doc[n_msgs-1]["Voltage"] = batteryVoltage;
-  doc[n_msgs-1]["Temperature"] = temperature;
-  doc[n_msgs-1]["lat"] = lat;
-  doc[n_msgs-1]["lng"] = lng;
-  doc[n_msgs-1]["locIsValid"] = gps.location.isValid();
+  doc[n_msgs]["Current"] = current;
+  doc[n_msgs]["Voltage"] = batteryVoltage;
+  doc[n_msgs]["Temperature"] = temperature;
+  doc[n_msgs]["lat"] = lat;
+  doc[n_msgs]["lng"] = lng;
+  doc[n_msgs]["locIsValid"] = gps.location.isValid();
   doc["n messages"] = n_msgs + 1;
   serializeJson(doc, Serial);
   lastMsgSuccess = true;
-  String serialStr = "oi";
+  while (!Serial.available()) {}
+  deserializeJson(doc, Serial);
+  String serialStr = doc["connectionStatus"];
   // adding message to log
   if (serialStr == "000") {
     lastMsgSuccess = false;
     qEnd = (qEnd + 1) % 12;
     if (qEnd == qStart)
       qStart = (qStart + 1) % 12;
-    serialStr = Serial.readString();
+    while (!Serial.available()) {}
+    deserializeJson(doc, Serial);
+    serialStr = doc["time"];
     msgQueue[qEnd].current = current;
     msgQueue[qEnd].voltage = batteryVoltage;
     msgQueue[qEnd].temperature = temperature;
