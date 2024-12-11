@@ -13,7 +13,8 @@ void dotProduct (float* a, float* b, size_t size, float* result) {
 /* 
 two good possible hypothesis sets are:
 h(x) = w1 + w2.x1 + w3.x1^2
-h(x) = w1 + w2.e^-x1
+h(x) = w1 + w2.e^x1
+h(x) = w1 + w2.x1 (no nonlinear transformation)
 */
 void linearTransformation(float* x, float** result) {}
 
