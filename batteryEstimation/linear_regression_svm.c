@@ -2,11 +2,12 @@
 
 // computes the doct product between a and b, where a and b are vectors of size "size" and stores the result onto the variable "result"
 // will be used as the kernel function k(xn, xm)
-void dotProduct (float* a, float* b, size_t size, float* result) {
+void dotProduct (float* a, float* b, unsigned int size, float* result) {
     (* result) = 0;
-    for (size_t i = 0; i < size; i++)
+    for (int i = 0; i < size; i++)
         (* result) += a[i] * b[i];
 }
+
 
 // computes the resulting vector of the nonlinear transformation ϕ(x)
 // will be used to enable the model to pick from a hypothesis set where the relation between input and output is nonlinear
