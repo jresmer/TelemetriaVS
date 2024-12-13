@@ -76,7 +76,7 @@ void train(float* w, float* a, int size, float* x, float* y, float c, float erro
                     addToList(o0, i);
             }
             int index = rand() % getSize(o0);
-            ai = at(index);
+            ai = at(o0, index);
         } else {
             int* o0 = createList();
             for (int ii = 0; ii < size; ii++) {
