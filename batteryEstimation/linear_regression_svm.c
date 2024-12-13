@@ -38,18 +38,53 @@ bool kkt(float* w, float a, float x, float y, float c, float error) {
         followsKKT = yhxn <= error;
     // 0 < a(n) < C y(n) h(x(n)) = 1 | Support vectors on the margin
     else
-        followsKKT = yhxn <= error || yhxn >= 0;
+        followsKKT = yhxn <= error && yhxn >= 0;
 
     return followsKKT;
 }
 
+// implementation of a linked list
+// to list of lagrange multipliers that don't follow kkt conditions
+// creates list with first element e of type int
+int* createList() {}
+
+// adds element e of type int to the linked list of first element "first"
+void addToList(int* first, float e) {}
+
+// removes element e of index i of to the linked list of first element "first"
+void removeFromList(int* first, int i) {}
+
+// returns element e of index i of the linked list of first element "first"
+int at(int* first, int i) {}
+
+// returns the size of the liked list refered to by the first element "first"
+int getSize(int* first) {}
+
+// deletes the liked list refered to by the first element "first"
+void delete(int* first) {}
+
 // optimizes the lagrange multipliers in order to train the model
-void train(float* a, float* x, float* y, int max_iterations) {
+void train(float* w, float* a, int size, float* x, float* y, float c, float error, int max_iterations) {
     float ai, aj;
+
     for (int i = 0; i < max_iterations; i++) {
         // selecting ai
         if (i % 2 == 0) {
-
+            int* o0 = createList();
+            for (int ii = 0; ii < size; ii++) {
+                if (!kkt(w, a[i], x[i], y[i], c, error))
+                    addToList(o0, i);
+            }
+            int index = rand() % getSize(o0);
+            ai = at(index);
+        } else {
+            int* o0 = createList();
+            for (int ii = 0; ii < size; ii++) {
+                if (!kkt(w, a[i], x[i], y[i], c, error) && 0 < a[i] && a[i] < c)
+                    addToList(o0, i);
+            }
+            int index = rand() % getSize(o0);
+            ai = at(o0, index);
         }
     }
 }
