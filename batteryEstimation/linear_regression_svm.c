@@ -22,25 +22,36 @@ void linearTransformation(float* x, float* w, float* result) {
     (* result) = w[0] + w[1]*x[0] + w[2]*x[0]*x[0];
 }
 
+// checks if lagrange multiplier a follows the kkt conditions
 bool kkt(float* w, float a, float x, float y, float c, float error) {
 
     float yhxn;
     linearTransformation(&x, w, &yhxn);
     yhxn = yhxn * y;
     bool followsKKT = false;
-
+    float diff = yhxn - 1;
+    // a(n) = 0 y(n)h(x(n)) ≥ 1 | Not support vectors
     if (!a)
-        followsKKT = yhxn >= 1;
-    else if (a == c) {
-        followsKKT = yhxn <= 1;
-    } else {
-        followsKKT = yhxn == 1;
-    }
+        followsKKT = diff >= error;
+    // a(n) = C y(n)h(x(n)) ≤ 1 | Support vectors on or violating the margin
+    else if (a == c) 
+        followsKKT = yhxn <= error;
+    // 0 < a(n) < C y(n) h(x(n)) = 1 | Support vectors on the margin
+    else
+        followsKKT = yhxn <= error || yhxn >= 0;
 
     return followsKKT;
 }
 
 // optimizes the lagrange multipliers in order to train the model
-void train(float* a, float* x, float* y) {}
+void train(float* a, float* x, float* y, int max_iterations) {
+    float ai, aj;
+    for (int i = 0; i < max_iterations; i++) {
+        // selecting ai
+        if (i % 2 == 0) {
+
+        }
+    }
+}
 
 void main() {}
