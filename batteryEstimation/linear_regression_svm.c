@@ -44,8 +44,7 @@ bool kkt(float* w, float a, float* x, float y, float c, float error) {
 h(xi) = ∑(αn - αn*).k(xi, xn) + b, where n ∈ S
 to estimate b take one suport vector m
 b = ym - ∑(αn - αn*).k(xm, xn)
-*/ 
-// TODO - review kernels
+*/
 float predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, int n_sv) {
     // estimating b
     int m = s[0];
@@ -54,7 +53,7 @@ float predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, in
         int n = s[k];
         b -= (a[n] - a_[n])*dotProduct(x[m], x[n], d);
     }
-
+    // predicting yi through h(xi) = ∑(αn - αn*).k(xi, xn) + b, where n ∈ S
     float yi = 0;
     for (int k = 0; k < n_sv; k++) {
         int n = s[k];
