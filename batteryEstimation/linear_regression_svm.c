@@ -64,13 +64,35 @@ float predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, in
     return yi;
 }
 
+void train(float** x, float* y, float* a, float* a_, int d, int dataset_size, int max_iterations) {
+    // for as many iterations as max_iterations optimizes the dual form of the langrangian
+    /*
+    max{(-1/2).∑(αi - αi*).(αj - αj*).k(xi, xj) - ε.∑(αi + αi*) + ∑yi.(αi + αi*)}
+    subject to:
+    ∑(αi - αi*) = 0 and αi, αi* ∈ [0, C]
+
+    the algorithm to the optimization is as follows:
+        take an i, j according to heuristics
+        optimizes for langrange multipliers of j contrained to the boundaries
+        recaulculates langrange multipliers of i respecting the chnages in those o j and the constraints
+        repeats
+    */
+    for (int o = 0; o < max_iterations; o++) {}
+}
+
 void main () {
     // read data
+    int dataset_size;
     // TODO
     // train model
+    // initializes langrange multipliers as [0 0 ... 0]
+    float* a = (float *) malloc(dataset_size * sizeof(float));
+    float* a_ = (float *) malloc(dataset_size * sizeof(float));
     // TODO
     // store trained model
     // TODO
-
+    // frees up arrays a, a_
+    free(a);
+    free(a_);
     return 0;
 }
