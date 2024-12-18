@@ -21,22 +21,6 @@ float dotProduct (float* a, float* b, unsigned int d) {
 // checks if lagrange multiplier a follows the kkt conditions
 bool kkt(float* w, float a, float* x, float y, float c, float error) {
 
-    float yhxn;
-    linearTransformation(x, w, &yhxn);
-    yhxn = yhxn * y;
-    bool followsKKT = false;
-    float diff = yhxn - 1;
-    // a(n) = 0 y(n)h(x(n)) ? 1 | Not support vectors
-    if (!a)
-        followsKKT = diff >= error;
-    // a(n) = C y(n)h(x(n)) ? 1 | Support vectors on or violating the margin
-    else if (a == c) 
-        followsKKT = yhxn <= error;
-    // 0 < a(n) < C y(n) h(x(n)) = 1 | Support vectors on the margin
-    else
-        followsKKT = yhxn <= error && yhxn >= 0;
-
-    return followsKKT;
 }
 
 // estimates the output yi of input xi through the model
@@ -77,7 +61,10 @@ void train(float** x, float* y, float* a, float* a_, int d, int dataset_size, in
         recaulculates langrange multipliers of i respecting the chnages in those o j and the constraints
         repeats
     */
-    for (int o = 0; o < max_iterations; o++) {}
+    for (int o = 0; o < max_iterations; o++) {
+        // selecting ai
+
+    }
 }
 
 void main () {
