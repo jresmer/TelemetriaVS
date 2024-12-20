@@ -19,9 +19,14 @@ float dotProduct (float* a, float* b, unsigned int d) {
 }
 
 // checks if lagrange multiplier a follows the kkt conditions
-bool kkt(float* w, float a, float* x, float y, float c, float error) {
+// TODO - refactor order of the parameters
+bool kkt(float* w, float a, float a_, float* x, float y, float c, float error) {}
 
-}
+// updates lagrange multipliers for i and j
+void update_lagrange_multipliers(int i, int j, float* a, float* a_, float* w, float** x, float* y) {}
+
+// cost function
+float lagrangean(float* a, float* a_, float* w, float** x, float* y) {}
 
 // estimates the output yi of input xi through the model
 /* 
@@ -29,6 +34,7 @@ h(xi) = ∑(αn - αn*).k(xi, xn) + b, where n ∈ S
 to estimate b take one suport vector m
 b = ym - ∑(αn - αn*).k(xm, xn)
 */
+// TODO - refactor order of the parameters
 float predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, int n_sv) {
     // estimating b
     int m = s[0];
@@ -48,7 +54,7 @@ float predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, in
     return yi;
 }
 
-void train(float** x, float* y, float* a, float* a_, int d, int dataset_size, int max_iterations) {
+void train(int d, int dataset_size, int target_n_improvements, int max_iterations, float error, int c, float* a, float* a_, float* w, float** x, float* y) {
     // for as many iterations as max_iterations optimizes the dual form of the langrangian
     /*
     max{(-1/2).∑(αi - αi*).(αj - αj*).k(xi, xj) - ε.∑(αi + αi*) + ∑yi.(αi + αi*)}
@@ -56,18 +62,114 @@ void train(float** x, float* y, float* a, float* a_, int d, int dataset_size, in
     ∑(αi - αi*) = 0 and αi, αi* ∈ [0, C]
 
     the algorithm to the optimization is as follows:
-        take an i, j according to heuristics
+        pick  i and j according to heuristics
         optimizes for langrange multipliers of j contrained to the boundaries
         recaulculates langrange multipliers of i respecting the chnages in those o j and the constraints
         repeats
     */
-    for (int o = 0; o < max_iterations; o++) {
-        // selecting ai
+    float old_lagrangean;
+    old_lagrangean = lagrangean(a, a_, w, x, y);
+    int lagrange_multipliers[n];
+    int list_size = 0;
+    float ai, a_i;
+    // TODO - comment here
+    // array 
+    int s[n];
+    for (int ii = 0; ii < dataset_size; ii++)
+        s[ii] = ii;
 
+    int n_improvements = 0;
+    for (int o = 0; o < max_iterations; o++) {
+
+        // breaks out of loop if the target number of improvements in the lagrangean has been achieved
+        if (n_improvements >= target_n_improvements)
+            break;
+        // selecting ai
+        // alternates between the two heuristics for ai selection
+        if (o % 2) {
+            for (int ii = 0; ii < dataset_size; ii++) {
+                // ai and a_i that do not satisfy the kkt conditions within a certain error 
+                if (!kkt(w, a[ii], a_[ii], x[ii], y[ii], c, error)) {
+                    lagrange_multipliers[list_size] = ii;
+                    list_size++;
+                }
+            }
+        } else {
+            for (int ii = 0; ii < dataset_size; ii++) {
+                // ai and a_i that do not satisfy the kkt conditions within a certain error and belong to the interval [0, c]
+                if (!kkt(w, a[ii], a_[ii], x[ii], y[ii], c, error) && 0 < a[ii] && a[ii] < c && 0 < a_[ii] && a_[ii] < c) {
+                    lagrange_multipliers[list_size] = ii;
+                    list_size++;
+                }
+            }
+        }
+        // recovering
+        int i = lagrange_multipliers[rand() % list_size];
+        ai = a[i];
+        a_i = a_[i];
+        // picking aj
+        // first heuristic: largest change in (aj - a_j) estimated by |Ei - Ej|
+        int j;
+        float largest_change, change;
+        largest_change = 0;
+        for (int ii = 0; ii < n; ii++) {
+            change = abs(predict(x, y, a, a_, i, d, s, n_sv) - y[i] - predict(x, y, a, a_, i, d, s, dataset_size))
+            if (change > largest_change) {
+                largest_change = change;
+                j = ii;
+            }
+        }
+        // calculate updates on lagrange multipliers and verify improvement in the cost
+        float new_a[n];
+        float new_a_[n];
+        for (int ii = 0; ii < n; ii++) {
+            new_a[ii] = a[ii];
+            new_a_[ii] = a_[ii];
+        }
+        update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y);
+        // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
+        if (lagrangean(new_a, new_a_, w, x, y) > old_lagrangean) {
+            a[i] = new_a[i];
+            a[j] = new_a[j];
+            n_improvements++;
+            continue;
+        }
+        new_a[i] = a[i];
+        new_a[j] = a[j];
+        // second heuristic: pick each 0 < aj < c in turn
+        for (int j = 0; j < dataset_size; j++) {
+            if (0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c) {
+                // calculate updates on lagrange multipliers and verify improvement in the cost
+                update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y);
+                // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
+                if (lagrangean(new_a, new_a_, w, x, y) > old_lagrangean) {
+                    a[i] = new_a[i];
+                    a[j] = new_a[j];
+                    n_improvements++;
+                    continue;
+                }
+            }
+        }
+        // third heuristic iterate through the rest of the training set
+        for (int j = 0; j < dataset_size; j++) {
+            if (!(0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c)) {
+                // calculate updates on lagrange multipliers and verify improvement in the cost
+                update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y);
+                // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
+                if (lagrangean(new_a, new_a_, w, x, y) > old_lagrangean) {
+                    a[i] = new_a[i];
+                    a[j] = new_a[j];
+                    n_improvements++;
+                    continue;
+                }
+            }
+        }
+        // fourth heuristic replace ai and try again
+        // in this case we just don't increment variable n_improviments
     }
 }
 
-void main () {
+int main () {
     // read data
     int dataset_size;
     // TODO
@@ -77,6 +179,7 @@ void main () {
     float* a_ = (float *) malloc(dataset_size * sizeof(float));
     // TODO
     // store trained model
+    // list support vectors
     // TODO
     // frees up arrays a, a_
     free(a);
