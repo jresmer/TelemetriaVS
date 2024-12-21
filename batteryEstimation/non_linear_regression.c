@@ -50,4 +50,4 @@ void gradientDescent(float* w, float* x, float* y, int n, int step, int max_iter
     }
 }
 
-void main () {}
+int main () {return 0;}
