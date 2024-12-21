@@ -25,8 +25,31 @@ bool kkt(float* w, float a, float a_, float* x, float y, float c, float error) {
 // updates lagrange multipliers for i and j
 void update_lagrange_multipliers(int i, int j, float* a, float* a_, float* w, float** x, float* y) {}
 
-// cost function
-float lagrangean(float* a, float* a_, float* w, float** x, float* y) {}
+// lagrangean function
+/*
+L(a) = -1/2.∑((αi - αi*).(αj - αj*).k(xi, xj)) - ε.∑(αi + αi*) + ∑(yi(αi + αi*))
+subjecto to: ∑((αi - αi*)) = 0 and αi, αi* ∈ [0, C]
+*/
+float lagrangean(float* a, float* a_, float** x, float* y, float epsilon, int dataset_size, int d) {
+    float term1 = 0;
+    float term2 = 0;
+    float term2 = 0;
+
+    for (int i = 0; i < dataset_size; i++) {
+        // (αi + αi*)
+        term2 += (a[i] + a_[i]);
+        // (yi(αi + αi*)
+        term3 += y[i] * (a[i] + a_[i]);
+        for (int j = 0; j < dataset_size; j++) {
+            // (αi - αi*).(αj - αj*).k(xi, xj)
+            term1 += (a[i] - a_[i]) * (a[j] - a_[j]) * dotProduct(x[i], x[j], d);
+        }
+        
+    }
+
+    // -1/2.∑((αi - αi*).(αj - αj*).k(xi, xj)) - ε.∑(αi + αi*) + ∑(yi(αi + αi*))
+    return -0.5f * term1 -epsilon * term2 + term3;
+}
 
 // estimates the output yi of input xi through the model
 /* 
@@ -69,12 +92,12 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
     */
     float old_lagrangean;
     old_lagrangean = lagrangean(a, a_, w, x, y);
-    int lagrange_multipliers[n];
+    int lagrange_multipliers[dataset_size];
     int list_size = 0;
     float ai, a_i;
     // TODO - comment here
     // array 
-    int s[n];
+    int s[dataset_size];
     for (int ii = 0; ii < dataset_size; ii++)
         s[ii] = ii;
 
@@ -112,17 +135,17 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         int j;
         float largest_change, change;
         largest_change = 0;
-        for (int ii = 0; ii < n; ii++) {
-            change = abs(predict(x, y, a, a_, i, d, s, n_sv) - y[i] - predict(x, y, a, a_, i, d, s, dataset_size))
+        for (int ii = 0; ii < dataset_size; ii++) {
+            change = abs(predict(x, y, a, a_, i, d, s, dataset_size) - y[i] - predict(x, y, a, a_, i, d, s, dataset_size));
             if (change > largest_change) {
                 largest_change = change;
                 j = ii;
             }
         }
         // calculate updates on lagrange multipliers and verify improvement in the cost
-        float new_a[n];
-        float new_a_[n];
-        for (int ii = 0; ii < n; ii++) {
+        float new_a[dataset_size];
+        float new_a_[dataset_size];
+        for (int ii = 0; ii < dataset_size; ii++) {
             new_a[ii] = a[ii];
             new_a_[ii] = a_[ii];
         }
