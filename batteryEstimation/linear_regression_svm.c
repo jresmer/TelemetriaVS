@@ -20,10 +20,57 @@ float dotProduct (float* a, float* b, unsigned int d) {
 
 // checks if lagrange multiplier a follows the kkt conditions
 // TODO - refactor order of the parameters
-bool kkt(float* w, float a, float a_, float* x, float y, float c, float error) {}
+bool kkt(float** x, float* y, float* a, float* a_, int i, float c, float epsilon, float error, int d, int* s, int n_sv) {
+    // Check bounds for Lagrange multipliers (0 ≤ αi,αi* ≤ C)
+    if (a[i] < -error || a[i] > c + error || a_[i] < -error || a_[i] > c + error) {
+        return false;
+    }
+
+    // Product constraint (αi.αi* = 0)
+    // Due to floating point arithmetic, we check if the product is close to zero
+    if (a[i] * a_[i] > error) {
+        return false;
+    }
+
+    // Get prediction h(x) using provided predict function
+    float pred = predict(x, y, a, a_, i, d, s, n_sv);
+    
+    // Calculate prediction error
+    float pred_error = y[i] - pred;
+
+    // Check KKT conditions for different cases
+    if (a[i] > error && a[i] < c - error) {
+        // If 0 < αi < C, then prediction error should be ε
+        if (fabs(pred_error - epsilon) > error) {
+            return false;
+        }
+    } else if (a_[i] > error && a_[i] < c - error) {
+        // If 0 < αi* < C, then prediction error should be -ε
+        if (fabs(pred_error + epsilon) > error) {
+            return false;
+        }
+    } else if (a[i] < error && a_[i] < error) {
+        // If α = αi* = 0, then -ε ≤ prediction error ≤ ε
+        if (fabs(pred_error) > epsilon + error) {
+            return false;
+        }
+    } else if (a[i] > c - error) {
+        // If αi = C, then prediction error ≥ ε
+        if (pred_error < epsilon - error) {
+            return false;
+        }
+    } else if (a_[i] > c - error) {
+        // If αi* = C, then prediction error ≤ -ε
+        if (pred_error > -epsilon + error) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 // updates lagrange multipliers for i and j
-void update_lagrange_multipliers(int i, int j, float* a, float* a_, float* w, float** x, float* y) {}
+void update_lagrange_multipliers(int i, int j, float* a, float* a_, float* w, float** x, float* y, float c, int d) {}
 
 // lagrangean function
 /*
@@ -44,7 +91,6 @@ float lagrangean(float* a, float* a_, float** x, float* y, float epsilon, int da
             // (αi - αi*).(αj - αj*).k(xi, xj)
             term1 += (a[i] - a_[i]) * (a[j] - a_[j]) * dotProduct(x[i], x[j], d);
         }
-        
     }
 
     // -1/2.∑((αi - αi*).(αj - αj*).k(xi, xj)) - ε.∑(αi + αi*) + ∑(yi(αi + αi*))
@@ -77,7 +123,7 @@ float predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, in
     return yi;
 }
 
-void train(int d, int dataset_size, int target_n_improvements, int max_iterations, float error, int c, float* a, float* a_, float* w, float** x, float* y) {
+void train(int d, int dataset_size, int target_n_improvements, int max_iterations, float epsilon, float error, int c, float* a, float* a_, float* w, float** x, float* y) {
     // for as many iterations as max_iterations optimizes the dual form of the langrangian
     /*
     max{(-1/2).∑(αi - αi*).(αj - αj*).k(xi, xj) - ε.∑(αi + αi*) + ∑yi.(αi + αi*)}
@@ -112,7 +158,8 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         if (o % 2) {
             for (int ii = 0; ii < dataset_size; ii++) {
                 // ai and a_i that do not satisfy the kkt conditions within a certain error 
-                if (!kkt(w, a[ii], a_[ii], x[ii], y[ii], c, error)) {
+                // (float** x, float* y, float* a, float* a_, int i, float c, float epsilon, float error, int d, int* s, int n_sv)
+                if (!kkt(x, y, a, a_, ii, c, epsilon, error, d, s, dataset_size)) {
                     lagrange_multipliers[list_size] = ii;
                     list_size++;
                 }
@@ -120,7 +167,7 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         } else {
             for (int ii = 0; ii < dataset_size; ii++) {
                 // ai and a_i that do not satisfy the kkt conditions within a certain error and belong to the interval [0, c]
-                if (!kkt(w, a[ii], a_[ii], x[ii], y[ii], c, error) && 0 < a[ii] && a[ii] < c && 0 < a_[ii] && a_[ii] < c) {
+                if (!kkt(x, y, a, a_, ii, c, epsilon, error, d, s, dataset_size) && 0 < a[ii] && a[ii] < c && 0 < a_[ii] && a_[ii] < c) {
                     lagrange_multipliers[list_size] = ii;
                     list_size++;
                 }
@@ -149,7 +196,7 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
             new_a[ii] = a[ii];
             new_a_[ii] = a_[ii];
         }
-        update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y);
+        update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y, c, d);
         // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
         if (lagrangean(new_a, new_a_, w, x, y) > old_lagrangean) {
             a[i] = new_a[i];
@@ -163,7 +210,7 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         for (int j = 0; j < dataset_size; j++) {
             if (0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c) {
                 // calculate updates on lagrange multipliers and verify improvement in the cost
-                update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y);
+                update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y, c, d);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
                 if (lagrangean(new_a, new_a_, w, x, y) > old_lagrangean) {
                     a[i] = new_a[i];
@@ -177,7 +224,7 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         for (int j = 0; j < dataset_size; j++) {
             if (!(0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c)) {
                 // calculate updates on lagrange multipliers and verify improvement in the cost
-                update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y);
+                update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y, c, d);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
                 if (lagrangean(new_a, new_a_, w, x, y) > old_lagrangean) {
                     a[i] = new_a[i];
