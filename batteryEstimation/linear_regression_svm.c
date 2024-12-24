@@ -70,7 +70,9 @@ bool kkt(float** x, float* y, float* a, float* a_, int i, float c, float epsilon
 }
 
 // updates lagrange multipliers for i and j
-void update_lagrange_multipliers(int i, int j, float* a, float* a_, float* w, float** x, float* y, float c, int d) {}
+void update_lagrange_multipliers(int i, int j, float* a, float* a_, float* w, float** x, float* y, float c, int d, float epsilon, int dataset_size) {
+    
+}
 
 // lagrangean function
 /*
@@ -136,6 +138,7 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         recaulculates langrange multipliers of i respecting the chnages in those o j and the constraints
         repeats
     */
+    float threshold = pow(epsilon, 0.5);
     float old_lagrangean;
     old_lagrangean = lagrangean(a, a_, w, x, y);
     int lagrange_multipliers[dataset_size];
@@ -149,7 +152,8 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
 
     int n_improvements = 0;
     for (int o = 0; o < max_iterations; o++) {
-
+        // resets the list
+        list_size = 0;
         // breaks out of loop if the target number of improvements in the lagrangean has been achieved
         if (n_improvements >= target_n_improvements)
             break;
@@ -173,6 +177,8 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
                 }
             }
         }
+        // if no training example violates the kkt conditions then the global minumum has been reached
+        if (!list_size) break;
         // recovering
         int i = lagrange_multipliers[rand() % list_size];
         ai = a[i];
@@ -196,9 +202,9 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
             new_a[ii] = a[ii];
             new_a_[ii] = a_[ii];
         }
-        update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y, c, d);
+        update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y, c, d, epsilon, dataset_size);
         // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
-        if (lagrangean(new_a, new_a_, w, x, y) > old_lagrangean) {
+        if (lagrangean(new_a, new_a_, w, x, y) - old_lagrangean > threshold) {
             a[i] = new_a[i];
             a[j] = new_a[j];
             n_improvements++;
@@ -210,9 +216,9 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         for (int j = 0; j < dataset_size; j++) {
             if (0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c) {
                 // calculate updates on lagrange multipliers and verify improvement in the cost
-                update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y, c, d);
+                update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y, c, d, epsilon, dataset_size);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
-                if (lagrangean(new_a, new_a_, w, x, y) > old_lagrangean) {
+                if (lagrangean(new_a, new_a_, w, x, y) - old_lagrangean > threshold) {
                     a[i] = new_a[i];
                     a[j] = new_a[j];
                     n_improvements++;
@@ -224,9 +230,9 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         for (int j = 0; j < dataset_size; j++) {
             if (!(0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c)) {
                 // calculate updates on lagrange multipliers and verify improvement in the cost
-                update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y, c, d);
+                update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y, c, d, epsilon, dataset_size);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
-                if (lagrangean(new_a, new_a_, w, x, y) > old_lagrangean) {
+                if (lagrangean(new_a, new_a_, w, x, y) - old_lagrangean > threshold) {
                     a[i] = new_a[i];
                     a[j] = new_a[j];
                     n_improvements++;
