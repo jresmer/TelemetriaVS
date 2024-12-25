@@ -69,9 +69,92 @@ bool kkt(float** x, float* y, float* a, float* a_, int i, float c, float epsilon
     return true;
 }
 
-// updates lagrange multipliers for i and j
-void update_lagrange_multipliers(int i, int j, float* a, float* a_, float* w, float** x, float* y, float c, int d, float epsilon, int dataset_size) {
+// signum function implementation for float values
+int sign(float x) {
     
+    if (-4E-4 < x && x < 4E-4) return 0;
+    if else (0.0f < x) return 1;
+    else return -1;
+}
+
+// step function implementation
+int step(float x) {
+    int a = x;
+    if (x > a) {
+        return a + 1;
+    } else {
+        return a;
+    }
+}
+
+// updates lagrange multipliers for i and j
+/*
+update rule based off of:
+Machine Learning, 46, 271–290, 2002
+c 2002 Kluwer Academic Publishers. Manufactured in The Netherlands.
+*/
+void update_lagrange_multipliers(int i, int j, float c, int d, float epsilon, int dataset_size, float* a, float* a_, float* w, float** x, float* y, float* s, int n_sv) {
+    // s∗ = λu* + λv*
+    float z = (a[i] - a_[i]) + (a[j] - a_[j]);
+    // η = kvv + kuu − 2kuv ;
+    float ita = dotProduct(x[i], x[i]) + dotProduct(x[j], x[j]) - 2 * dotProduct(x[i], x[j]);
+    // delta = 2ε/η;
+    float delta = 2 * epsilon / ita;
+
+    // λi = αi - αi*
+    // calculate new λj based off the value of the old one
+    float lj_new = (a[j] - a_[j]) + 1/ita * (y[j] - y[i] + predict(x, y, a, a_, j, s, n_sv) - predict(x, y, a, a_, i, s, n_sv));
+    float li_new = z - lj_new;
+
+    // if the multipliers differ in sign adjust the multipliers
+    if (lj_new * li_new < 0.0f) {
+        if (fabs(lj_new) >= delta && fabs(li_new) >= delta) {
+            // λv = λv − sgn(λv ) · delta
+            lj_new = lj_new - sign(lj_new) * delta;
+        } else {
+            // λv = step(|λv |−|λu |) · s∗
+            lj_new = step(fabs(lj_new) - fabs(li_new)) * z;
+        }
+    }
+    // L = max(s∗ − C, −C)
+    float l_bound, h_bound, aux;
+    aux = z - c;
+    if (aux > -c) {
+        l_bound = aux;
+    } else {
+        l_bound = -c;
+    }
+    // H = min(s∗ + C, C)
+    aux = z + c;
+    if (aux > c) {
+        h_bound = aux;
+    } else {
+        h_bound = c;
+    }
+    // λv = min(max(λv , L), H)
+    if (lj_new < l_bound) {
+        lj_new = l_bound;
+    }
+    if (lj_new > h_bound) {
+        lj_new = h_bound;
+    }
+    // λu = s∗ − λv
+    li_new = z - lj_new;
+    // updating lagrange multipliers
+    if (sign(lj_new)) {
+        a[j] = lj_new;
+        a_[j] = 0;
+    } else {
+        a_[j] = lj_new;
+        a[j] = 0; 
+    }
+    if (sign(li_new)) {
+        a[i] = li_new;
+        a_[i] = 0;
+    } else {
+        a_[i] = li_new;
+        a[i] = 0; 
+    }
 }
 
 // lagrangean function
@@ -202,9 +285,10 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
             new_a[ii] = a[ii];
             new_a_[ii] = a_[ii];
         }
-        update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y, c, d, epsilon, dataset_size);
+        update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, n_sv);
         // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
-        if (lagrangean(new_a, new_a_, w, x, y) - old_lagrangean > threshold) {
+        if (new_lagrangeam - old_lagrangean > threshold) {
+            old_lagrangean = new_lagrangean;
             a[i] = new_a[i];
             a[j] = new_a[j];
             n_improvements++;
@@ -216,9 +300,11 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         for (int j = 0; j < dataset_size; j++) {
             if (0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c) {
                 // calculate updates on lagrange multipliers and verify improvement in the cost
-                update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y, c, d, epsilon, dataset_size);
+                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, n_sv);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
-                if (lagrangean(new_a, new_a_, w, x, y) - old_lagrangean > threshold) {
+                float new_lagrangeam = lagrangean(new_a, new_a_, w, x, y);
+                if (new_lagrangeam - old_lagrangean > threshold) {
+                    old_lagrangean = new_lagrangean;
                     a[i] = new_a[i];
                     a[j] = new_a[j];
                     n_improvements++;
@@ -230,9 +316,10 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         for (int j = 0; j < dataset_size; j++) {
             if (!(0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c)) {
                 // calculate updates on lagrange multipliers and verify improvement in the cost
-                update_lagrange_multipliers(i, j, new_a, new_a_, w, x, y, c, d, epsilon, dataset_size);
+                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, n_sv);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
-                if (lagrangean(new_a, new_a_, w, x, y) - old_lagrangean > threshold) {
+                if (new_lagrangeam - old_lagrangean > threshold) {
+                    old_lagrangean = new_lagrangean;
                     a[i] = new_a[i];
                     a[j] = new_a[j];
                     n_improvements++;
@@ -240,6 +327,7 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
                 }
             }
         }
+        // TODO - update threshold
         // fourth heuristic replace ai and try again
         // in this case we just don't increment variable n_improviments
     }
