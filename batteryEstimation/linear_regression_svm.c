@@ -8,6 +8,7 @@ subjecto to: ∑((αi - αi*)) = 0 and αi, αi* ∈ [0, C]
 // will be used as the kernel function k(xn, xm)
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <stdbool.h>
 
 float dotProduct (float* a, float* b, unsigned int d) {
@@ -232,8 +233,8 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         repeats
     */
     float threshold = pow(epsilon, 0.5);
-    float old_lagrangean;
-    old_lagrangean = lagrangean(a, a_, w, x, y);
+    float old_lagrangean, new_lagrangean;
+    old_lagrangean = lagrangean(a, a_, x, y, epsilon, dataset_size, d);
     int lagrange_multipliers[dataset_size];
     int list_size = 0;
     float ai, a_i;
@@ -296,6 +297,7 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
             new_a_[ii] = a_[ii];
         }
         update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, n_sv);
+        new_lagrangeam = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
         // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
         if (new_lagrangeam - old_lagrangean > threshold) {
             old_lagrangean = new_lagrangean;
@@ -312,7 +314,7 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
                 // calculate updates on lagrange multipliers and verify improvement in the cost
                 update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, n_sv);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
-                float new_lagrangeam = lagrangean(new_a, new_a_, w, x, y);
+                new_lagrangeam = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
                 if (new_lagrangeam - old_lagrangean > threshold) {
                     old_lagrangean = new_lagrangean;
                     a[i] = new_a[i];
@@ -328,6 +330,7 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
                 // calculate updates on lagrange multipliers and verify improvement in the cost
                 update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, n_sv);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
+                new_lagrangeam = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
                 if (new_lagrangeam - old_lagrangean > threshold) {
                     old_lagrangean = new_lagrangean;
                     a[i] = new_a[i];
@@ -345,14 +348,47 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
 
 int main () {
     // read data
-    int dataset_size;
+    int dataset_size, d, c, max_iterations;
+    float epsilon, error;
+    float** x;
+    float* y, a, a_;
     // TODO
     // train model
     // initializes langrange multipliers as [0 0 ... 0]
-    float* a = (float *) malloc(dataset_size * sizeof(float));
-    float* a_ = (float *) malloc(dataset_size * sizeof(float));
+    a = (float *) malloc(dataset_size * sizeof(float));
+    a_ = (float *) malloc(dataset_size * sizeof(float));
     // TODO
+    // determine which training examples are support vectors
+    // s is a support vector array used for prediction
+    // since we're determining which examples are support vectors we initialize an array with all traning examples
+    int s[dataset_size];
+    for (int ii = 0; ii < dataset_size; ii++)
+        s[ii] = ii;
+    int s_[dataset_size];
+    int size_of_s_ = 0;
+    float prediction;
+    for (int i = 0; i < dataset_size; i++) {
+        //predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, int n_sv)
+        prediction = predict(x, y, a, a_, i, s, dataset_size);
+        // if the example i is within the tube it is a support vector
+        if (fabs(prediction - y[i]) <= epsilon) {
+            s[size_of_s_] = i;
+            size_of_s_++;
+        }
+    }
+    // storing the values into an array of the correct size
+    int support_vectors[size_of_s_];
+    for (int i = 0; i < size_of_s_; i++) {
+        support_vectors[i] = s_[i];
+    }
     // store trained model
+    FILE* model;
+    model = fopen("model", "wb");
+    if (model == NULL) {
+        fprintf(stderr, "\nError opening file\n");
+        exit(1);
+    }
+    
     // list support vectors
     // TODO
     // frees up arrays a, a_
