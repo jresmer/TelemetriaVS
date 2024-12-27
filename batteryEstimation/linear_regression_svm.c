@@ -94,8 +94,19 @@ Machine Learning, 46, 271–290, 2002
 c 2002 Kluwer Academic Publishers. Manufactured in The Netherlands.
 */
 void update_lagrange_multipliers(int i, int j, float c, int d, float epsilon, int dataset_size, float* a, float* a_, float* w, float** x, float* y, float* s, int n_sv) {
+    // the update rule is more numerically stable if λu > λv, therefore in case it is not we just switch them around
+    float lambda_i = (a[i] - a_[i]);
+    float lambda_j = (a[j] - a_[j]);
+    if (lambda_j > lambda_i) {
+        int aux = i;
+        i = j;
+        j = aux;
+        float aux = lambda_i;
+        lambda_i = lambda_j;
+        lambda_j = aux;
+    }
     // s∗ = λu* + λv*
-    float z = (a[i] - a_[i]) + (a[j] - a_[j]);
+    float z = lambda_i + lambda_j;
     // η = kvv + kuu − 2kuv ;
     float ita = dotProduct(x[i], x[i]) + dotProduct(x[j], x[j]) - 2 * dotProduct(x[i], x[j]);
     // delta = 2ε/η;
@@ -203,9 +214,8 @@ float predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, in
         int n = s[k];
         yi += (a[n] - a_[n])*dotProduct(x[i], x[n], d);
     }
-    yi += b;
 
-    return yi;
+    return yi + b;
 }
 
 void train(int d, int dataset_size, int target_n_improvements, int max_iterations, float epsilon, float error, int c, float* a, float* a_, float* w, float** x, float* y) {
