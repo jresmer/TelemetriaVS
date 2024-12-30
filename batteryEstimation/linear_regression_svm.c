@@ -10,6 +10,7 @@ subjecto to: ∑((αi - αi*)) = 0 and αi, αi* ∈ [0, C]
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <math.h>
 
 float dotProduct (float* a, float* b, unsigned int d) {
     float result = 0;
@@ -17,6 +18,24 @@ float dotProduct (float* a, float* b, unsigned int d) {
         result += a[i] * b[i];
     
     return result;
+}
+
+// estimates the output yi of input xi through the model
+/* 
+h(xi) = ∑(αn - αn*).k(xi, xn) + b, where n ∈ S
+to estimate b take one suport vector m
+b = ym - ∑(αn - αn*).k(xm, xn)
+*/
+// TODO - refactor order of the parameters
+float predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, int n_sv, float b) {
+    // predicting yi through h(xi) = ∑(αn - αn*).k(xi, xn) + b, where n ∈ S
+    float yi = 0;
+    for (int k = 0; k < n_sv; k++) {
+        int n = s[k];
+        yi += (a[n] - a_[n])*dotProduct(x[i], x[n], d);
+    }
+
+    return yi + b;
 }
 
 // checks if lagrange multiplier a follows the kkt conditions
@@ -34,7 +53,7 @@ bool kkt(float** x, float* y, float* a, float* a_, int i, float c, float epsilon
     }
 
     // Get prediction h(x) using provided predict function
-    float pred = predict(x, y, a, a_, i, d, s, n_sv);
+    float pred = predict(x, y, a, a_, i, d, s, n_sv, d);
     
     // Calculate prediction error
     float pred_error = y[i] - pred;
@@ -74,7 +93,7 @@ bool kkt(float** x, float* y, float* a, float* a_, int i, float c, float epsilon
 int sign(float x) {
     
     if (-4E-4 < x && x < 4E-4) return 0;
-    if else (0.0f < x) return 1;
+    else if (0.0f < x) return 1;
     else return -1;
 }
 
@@ -94,7 +113,7 @@ update rule based off of:
 Machine Learning, 46, 271–290, 2002
 c 2002 Kluwer Academic Publishers. Manufactured in The Netherlands.
 */
-void update_lagrange_multipliers(int i, int j, float c, int d, float epsilon, int dataset_size, float* a, float* a_, float* w, float** x, float* y, float* s, int n_sv) {
+void update_lagrange_multipliers(int i, int j, float c, int d, float epsilon, int dataset_size, float* a, float* a_, float* w, float** x, float* y, int* s, int n_sv, float b) {
     // the update rule is more numerically stable if λu > λv, therefore in case it is not we just switch them around
     float lambda_i = (a[i] - a_[i]);
     float lambda_j = (a[j] - a_[j]);
@@ -102,20 +121,20 @@ void update_lagrange_multipliers(int i, int j, float c, int d, float epsilon, in
         int aux = i;
         i = j;
         j = aux;
-        float aux = lambda_i;
+        float aux_ = lambda_i;
         lambda_i = lambda_j;
-        lambda_j = aux;
+        lambda_j = aux_;
     }
     // s∗ = λu* + λv*
     float z = lambda_i + lambda_j;
     // η = kvv + kuu − 2kuv ;
-    float ita = dotProduct(x[i], x[i]) + dotProduct(x[j], x[j]) - 2 * dotProduct(x[i], x[j]);
+    float ita = dotProduct(x[i], x[i], d) + dotProduct(x[j], x[j], d) - 2 * dotProduct(x[i], x[j], d);
     // delta = 2ε/η;
     float delta = 2 * epsilon / ita;
 
     // λi = αi - αi*
     // calculate new λj based off the value of the old one
-    float lj_new = (a[j] - a_[j]) + 1/ita * (y[j] - y[i] + predict(x, y, a, a_, j, s, n_sv) - predict(x, y, a, a_, i, s, n_sv));
+    float lj_new = (a[j] - a_[j]) + 1/ita * (y[j] - y[i] + predict(x, y, a, a_, j, d, s, n_sv, b) - predict(x, y, a, a_, i, d, s, n_sv, b));
     float li_new = z - lj_new;
 
     // if the multipliers differ in sign adjust the multipliers
@@ -177,7 +196,7 @@ subjecto to: ∑((αi - αi*)) = 0 and αi, αi* ∈ [0, C]
 float lagrangean(float* a, float* a_, float** x, float* y, float epsilon, int dataset_size, int d) {
     float term1 = 0;
     float term2 = 0;
-    float term2 = 0;
+    float term3 = 0;
 
     for (int i = 0; i < dataset_size; i++) {
         // (αi + αi*)
@@ -194,32 +213,25 @@ float lagrangean(float* a, float* a_, float** x, float* y, float epsilon, int da
     return -0.5f * term1 -epsilon * term2 + term3;
 }
 
-// estimates the output yi of input xi through the model
-/* 
-h(xi) = ∑(αn - αn*).k(xi, xn) + b, where n ∈ S
-to estimate b take one suport vector m
-b = ym - ∑(αn - αn*).k(xm, xn)
-*/
-// TODO - refactor order of the parameters
-float predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, int n_sv) {
-    // estimating b
-    int m = s[0];
-    float b = y[m];
-    for (int k = 0; k < n_sv; k++) {
-        int n = s[k];
-        b -= (a[n] - a_[n])*dotProduct(x[m], x[n], d);
-    }
-    // predicting yi through h(xi) = ∑(αn - αn*).k(xi, xn) + b, where n ∈ S
-    float yi = 0;
-    for (int k = 0; k < n_sv; k++) {
-        int n = s[k];
-        yi += (a[n] - a_[n])*dotProduct(x[i], x[n], d);
-    }
+// threshold update function
+// TODO - doublecheck the constraints hit during the update
+float update_b (float yi, float yj, float fi, float fj, float li, float lj, float li_new, float lj_new, float* xi, float* xj, float b, int d) {
+    float candidate_i, candidate_j;
+    float diff_i = li - li_new;
+    float diff_j = lj - lj_new;
 
-    return yi + b;
+    // bu = yu − fu* + (λu* − λu)kuu + (λv* − λv)kuv + b*
+    candidate_i = yi - fi + diff_i * dotProduct(xi, xi, d) + diff_j * dotProduct(xi, xj, d) + b;
+    // bv = yv − fv* + (λu* − λu)kuv + (λv* − λv)kvv + b*
+    candidate_j = yj - fj + diff_i * dotProduct(xi, xj, d) + diff_j * dotProduct(xj, xj, d) + b;
+
+    if (candidate_i != candidate_j) 
+        return (candidate_i + candidate_j) / 2;
+
+    return candidate_i;
 }
 
-void train(int d, int dataset_size, int target_n_improvements, int max_iterations, float epsilon, float error, int c, float* a, float* a_, float* w, float** x, float* y) {
+float train(int d, int dataset_size, int target_n_improvements, int max_iterations, float epsilon, float error, int c, float* a, float* a_, float* w, float** x, float* y) {
     // for as many iterations as max_iterations optimizes the dual form of the langrangian
     /*
     max{(-1/2).∑(αi - αi*).(αj - αj*).k(xi, xj) - ε.∑(αi + αi*) + ∑yi.(αi + αi*)}
@@ -238,6 +250,7 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
     int lagrange_multipliers[dataset_size];
     int list_size = 0;
     float ai, a_i;
+    float b;
     // TODO - comment here
     // array 
     int s[dataset_size];
@@ -253,6 +266,26 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
             break;
         // selecting ai
         // alternates between the two heuristics for ai selection
+        /*
+        TODO
+        this heurestic should be double checked
+        an alternative would be to only look for training examples that do not follow kkt conditions and are non bounded unless no progress was made last iteration
+        following the pseudo code present in :
+        Machine Learning, 46, 271–290, 2002
+        c 2002 Kluwer Academic Publishers. Manufactured in The Netherlands.
+        While further progress can be made:
+        1. If this is the first iteration, or if the previous iteration made no progress, then
+        let the working set be all data points.
+        2. Otherwise, let the working set consist only of data points with non-bounded
+        Lagrange multipliers.
+        3. For all data points in the working set, try to optimize the corresponding
+        Lagrange multiplier. To find the second Lagrange multiplier:
+        3.1 Try the best one (found from looping over the non-bounded multipliers)
+        according to Platt’s heuristic, or
+        3.2 Try all among the working set, or
+        3.3 Try to find one among the entire set of Lagrange multipliers.
+        4. If no progress was made and the working set was all data points, then done
+        */
         if (o % 2) {
             for (int ii = 0; ii < dataset_size; ii++) {
                 // ai and a_i that do not satisfy the kkt conditions within a certain error 
@@ -283,7 +316,7 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         float largest_change, change;
         largest_change = 0;
         for (int ii = 0; ii < dataset_size; ii++) {
-            change = abs(predict(x, y, a, a_, i, d, s, dataset_size) - y[i] - predict(x, y, a, a_, i, d, s, dataset_size));
+            change = abs(predict(x, y, a, a_, i, d, s, dataset_size, b) - y[i] - predict(x, y, a, a_, i, d, s, dataset_size, b));
             if (change > largest_change) {
                 largest_change = change;
                 j = ii;
@@ -296,14 +329,23 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
             new_a[ii] = a[ii];
             new_a_[ii] = a_[ii];
         }
-        update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, n_sv);
-        new_lagrangeam = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
+        update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, dataset_size, b);
+        new_lagrangean = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
         // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
-        if (new_lagrangeam - old_lagrangean > threshold) {
+        if (new_lagrangean - old_lagrangean > threshold) {
+            // update lagrangean
             old_lagrangean = new_lagrangean;
+            // increment control variable n_improvements
+            n_improvements++;
+            // update bias
+            float fi = predict(x, y, a, a_, i, d, s, dataset_size, b);
+            float fj = predict(x, y, a, a_, j, d, s, dataset_size, b);
+            b = update_b(y[i], y[j], fi, fj, a[i] - a_[i], a[j] - a_[j], new_a[i] - new_a_[i], new_a[j] - new_a_[j], x[i], x[j], b, d);
+            // update the lagrangean multipliers
             a[i] = new_a[i];
             a[j] = new_a[j];
-            n_improvements++;
+            a_[i] = new_a_[i];
+            a_[j] = new_a_[j];
             continue;
         }
         new_a[i] = a[i];
@@ -312,14 +354,23 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         for (int j = 0; j < dataset_size; j++) {
             if (0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c) {
                 // calculate updates on lagrange multipliers and verify improvement in the cost
-                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, n_sv);
+                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, dataset_size, b);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
-                new_lagrangeam = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
-                if (new_lagrangeam - old_lagrangean > threshold) {
+                new_lagrangean = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
+                if (new_lagrangean - old_lagrangean > threshold) {
+                    // update lagrangean
                     old_lagrangean = new_lagrangean;
+                    // increment control variable n_improvements
+                    n_improvements++;
+                    // update bias
+                    float fi = predict(x, y, a, a_, i, d, s, dataset_size, b);
+                    float fj = predict(x, y, a, a_, j, d, s, dataset_size, b);
+                    b = update_b(y[i], y[j], fi, fj, a[i] - a_[i], a[j] - a_[j], new_a[i] - new_a_[i], new_a[j] - new_a_[j], x[i], x[j], b, d);
+                    // update the lagrangean multipliers
                     a[i] = new_a[i];
                     a[j] = new_a[j];
-                    n_improvements++;
+                    a_[i] = new_a_[i];
+                    a_[j] = new_a_[j];
                     continue;
                 }
             }
@@ -328,35 +379,45 @@ void train(int d, int dataset_size, int target_n_improvements, int max_iteration
         for (int j = 0; j < dataset_size; j++) {
             if (!(0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c)) {
                 // calculate updates on lagrange multipliers and verify improvement in the cost
-                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, n_sv);
+                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, dataset_size, b);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
-                new_lagrangeam = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
-                if (new_lagrangeam - old_lagrangean > threshold) {
+                new_lagrangean = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
+                if (new_lagrangean - old_lagrangean > threshold) {
+                    // update lagrangean
                     old_lagrangean = new_lagrangean;
+                    // increment control variable n_improvements
+                    n_improvements++;
+                    // update bias
+                    float fi = predict(x, y, a, a_, i, d, s, dataset_size, b);
+                    float fj = predict(x, y, a, a_, j, d, s, dataset_size, b);
+                    b = update_b(y[i], y[j], fi, fj, a[i] - a_[i], a[j] - a_[j], new_a[i] - new_a_[i], new_a[j] - new_a_[j], x[i], x[j], b, d);
+                    // update the lagrangean multipliers
                     a[i] = new_a[i];
                     a[j] = new_a[j];
-                    n_improvements++;
+                    a_[i] = new_a_[i];
+                    a_[j] = new_a_[j];
                     continue;
                 }
             }
         }
-        // TODO - update threshold
         // fourth heuristic replace ai and try again
         // in this case we just don't increment variable n_improviments
     }
+
+    return b;
 }
 
 int main () {
     // read data
     int dataset_size, d, c, max_iterations;
-    float epsilon, error;
+    float epsilon, error, b;
     float** x;
-    float* y, a, a_;
+    float* y;
     // TODO
     // train model
     // initializes langrange multipliers as [0 0 ... 0]
-    a = (float *) malloc(dataset_size * sizeof(float));
-    a_ = (float *) malloc(dataset_size * sizeof(float));
+    float* a = (float *) malloc(dataset_size * sizeof(float));
+    float* a_ = (float *) malloc(dataset_size * sizeof(float));
     // TODO
     // determine which training examples are support vectors
     // s is a support vector array used for prediction
@@ -369,7 +430,7 @@ int main () {
     float prediction;
     for (int i = 0; i < dataset_size; i++) {
         //predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, int n_sv)
-        prediction = predict(x, y, a, a_, i, s, dataset_size);
+        prediction = predict(x, y, a, a_, i, d, s, dataset_size, b);
         // if the example i is within the tube it is a support vector
         if (fabs(prediction - y[i]) <= epsilon) {
             s[size_of_s_] = i;
@@ -388,11 +449,9 @@ int main () {
         fprintf(stderr, "\nError opening file\n");
         exit(1);
     }
-    
-    // list support vectors
-    // TODO
     // frees up arrays a, a_
     free(a);
     free(a_);
+
     return 0;
 }
