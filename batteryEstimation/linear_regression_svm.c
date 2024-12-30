@@ -27,12 +27,11 @@ to estimate b take one suport vector m
 b = ym - ∑(αn - αn*).k(xm, xn)
 */
 // TODO - refactor order of the parameters
-float predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, int n_sv, float b) {
+float predict(float** x, float* y, float* a, float* a_, int i, int d, int size, float b) {
     // predicting yi through h(xi) = ∑(αn - αn*).k(xi, xn) + b, where n ∈ S
     float yi = 0;
-    for (int k = 0; k < n_sv; k++) {
-        int n = s[k];
-        yi += (a[n] - a_[n])*dotProduct(x[i], x[n], d);
+    for (int k = 0; k < size; k++) {
+        yi += (a[k] - a_[k])*dotProduct(x[i], x[k], d);
     }
 
     return yi + b;
@@ -40,7 +39,7 @@ float predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, in
 
 // checks if lagrange multiplier a follows the kkt conditions
 // TODO - refactor order of the parameters
-bool kkt(float** x, float* y, float* a, float* a_, int i, float c, float epsilon, float error, int d, int* s, int n_sv) {
+bool kkt(float** x, float* y, float* a, float* a_, int i, float c, float epsilon, float error, int d, int n_sv) {
     // Check bounds for Lagrange multipliers (0 ≤ αi,αi* ≤ C)
     if (a[i] < -error || a[i] > c + error || a_[i] < -error || a_[i] > c + error) {
         return false;
@@ -53,7 +52,7 @@ bool kkt(float** x, float* y, float* a, float* a_, int i, float c, float epsilon
     }
 
     // Get prediction h(x) using provided predict function
-    float pred = predict(x, y, a, a_, i, d, s, n_sv, d);
+    float pred = predict(x, y, a, a_, i, d, n_sv, d);
     
     // Calculate prediction error
     float pred_error = y[i] - pred;
@@ -113,7 +112,7 @@ update rule based off of:
 Machine Learning, 46, 271–290, 2002
 c 2002 Kluwer Academic Publishers. Manufactured in The Netherlands.
 */
-void update_lagrange_multipliers(int i, int j, float c, int d, float epsilon, int dataset_size, float* a, float* a_, float* w, float** x, float* y, int* s, int n_sv, float b) {
+void update_lagrange_multipliers(int i, int j, float c, int d, float epsilon, int dataset_size, float* a, float* a_, float* w, float** x, float* y, int n_sv, float b) {
     // the update rule is more numerically stable if λu > λv, therefore in case it is not we just switch them around
     float lambda_i = (a[i] - a_[i]);
     float lambda_j = (a[j] - a_[j]);
@@ -134,7 +133,7 @@ void update_lagrange_multipliers(int i, int j, float c, int d, float epsilon, in
 
     // λi = αi - αi*
     // calculate new λj based off the value of the old one
-    float lj_new = (a[j] - a_[j]) + 1/ita * (y[j] - y[i] + predict(x, y, a, a_, j, d, s, n_sv, b) - predict(x, y, a, a_, i, d, s, n_sv, b));
+    float lj_new = (a[j] - a_[j]) + 1/ita * (y[j] - y[i] + predict(x, y, a, a_, j, d, n_sv, b) - predict(x, y, a, a_, i, d, n_sv, b));
     float li_new = z - lj_new;
 
     // if the multipliers differ in sign adjust the multipliers
@@ -214,7 +213,6 @@ float lagrangean(float* a, float* a_, float** x, float* y, float epsilon, int da
 }
 
 // threshold update function
-// TODO - doublecheck the constraints hit during the update
 float update_b (float yi, float yj, float fi, float fj, float li, float lj, float li_new, float lj_new, float* xi, float* xj, float b, int d) {
     float candidate_i, candidate_j;
     float diff_i = li - li_new;
@@ -250,12 +248,7 @@ float train(int d, int dataset_size, int target_n_improvements, int max_iteratio
     int lagrange_multipliers[dataset_size];
     int list_size = 0;
     float ai, a_i;
-    float b;
-    // TODO - comment here
-    // array 
-    int s[dataset_size];
-    for (int ii = 0; ii < dataset_size; ii++)
-        s[ii] = ii;
+    float b = 0;
 
     int n_improvements = 0;
     for (int o = 0; o < max_iterations; o++) {
@@ -290,7 +283,7 @@ float train(int d, int dataset_size, int target_n_improvements, int max_iteratio
             for (int ii = 0; ii < dataset_size; ii++) {
                 // ai and a_i that do not satisfy the kkt conditions within a certain error 
                 // (float** x, float* y, float* a, float* a_, int i, float c, float epsilon, float error, int d, int* s, int n_sv)
-                if (!kkt(x, y, a, a_, ii, c, epsilon, error, d, s, dataset_size)) {
+                if (!kkt(x, y, a, a_, ii, c, epsilon, error, d, dataset_size)) {
                     lagrange_multipliers[list_size] = ii;
                     list_size++;
                 }
@@ -298,7 +291,7 @@ float train(int d, int dataset_size, int target_n_improvements, int max_iteratio
         } else {
             for (int ii = 0; ii < dataset_size; ii++) {
                 // ai and a_i that do not satisfy the kkt conditions within a certain error and belong to the interval [0, c]
-                if (!kkt(x, y, a, a_, ii, c, epsilon, error, d, s, dataset_size) && 0 < a[ii] && a[ii] < c && 0 < a_[ii] && a_[ii] < c) {
+                if (!kkt(x, y, a, a_, ii, c, epsilon, error, d, dataset_size) && 0 < a[ii] && a[ii] < c && 0 < a_[ii] && a_[ii] < c) {
                     lagrange_multipliers[list_size] = ii;
                     list_size++;
                 }
@@ -316,7 +309,7 @@ float train(int d, int dataset_size, int target_n_improvements, int max_iteratio
         float largest_change, change;
         largest_change = 0;
         for (int ii = 0; ii < dataset_size; ii++) {
-            change = abs(predict(x, y, a, a_, i, d, s, dataset_size, b) - y[i] - predict(x, y, a, a_, i, d, s, dataset_size, b));
+            change = abs(predict(x, y, a, a_, i, d, dataset_size, b) - y[i] - predict(x, y, a, a_, i, d, dataset_size, b));
             if (change > largest_change) {
                 largest_change = change;
                 j = ii;
@@ -329,7 +322,7 @@ float train(int d, int dataset_size, int target_n_improvements, int max_iteratio
             new_a[ii] = a[ii];
             new_a_[ii] = a_[ii];
         }
-        update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, dataset_size, b);
+        update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, dataset_size, b);
         new_lagrangean = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
         // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
         if (new_lagrangean - old_lagrangean > threshold) {
@@ -338,8 +331,8 @@ float train(int d, int dataset_size, int target_n_improvements, int max_iteratio
             // increment control variable n_improvements
             n_improvements++;
             // update bias
-            float fi = predict(x, y, a, a_, i, d, s, dataset_size, b);
-            float fj = predict(x, y, a, a_, j, d, s, dataset_size, b);
+            float fi = predict(x, y, a, a_, i, d, dataset_size, b);
+            float fj = predict(x, y, a, a_, j, d, dataset_size, b);
             b = update_b(y[i], y[j], fi, fj, a[i] - a_[i], a[j] - a_[j], new_a[i] - new_a_[i], new_a[j] - new_a_[j], x[i], x[j], b, d);
             // update the lagrangean multipliers
             a[i] = new_a[i];
@@ -354,7 +347,7 @@ float train(int d, int dataset_size, int target_n_improvements, int max_iteratio
         for (int j = 0; j < dataset_size; j++) {
             if (0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c) {
                 // calculate updates on lagrange multipliers and verify improvement in the cost
-                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, dataset_size, b);
+                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, dataset_size, b);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
                 new_lagrangean = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
                 if (new_lagrangean - old_lagrangean > threshold) {
@@ -363,8 +356,8 @@ float train(int d, int dataset_size, int target_n_improvements, int max_iteratio
                     // increment control variable n_improvements
                     n_improvements++;
                     // update bias
-                    float fi = predict(x, y, a, a_, i, d, s, dataset_size, b);
-                    float fj = predict(x, y, a, a_, j, d, s, dataset_size, b);
+                    float fi = predict(x, y, a, a_, i, d, dataset_size, b);
+                    float fj = predict(x, y, a, a_, j, d, dataset_size, b);
                     b = update_b(y[i], y[j], fi, fj, a[i] - a_[i], a[j] - a_[j], new_a[i] - new_a_[i], new_a[j] - new_a_[j], x[i], x[j], b, d);
                     // update the lagrangean multipliers
                     a[i] = new_a[i];
@@ -379,7 +372,7 @@ float train(int d, int dataset_size, int target_n_improvements, int max_iteratio
         for (int j = 0; j < dataset_size; j++) {
             if (!(0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c)) {
                 // calculate updates on lagrange multipliers and verify improvement in the cost
-                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, s, dataset_size, b);
+                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, dataset_size, b);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
                 new_lagrangean = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
                 if (new_lagrangean - old_lagrangean > threshold) {
@@ -388,8 +381,8 @@ float train(int d, int dataset_size, int target_n_improvements, int max_iteratio
                     // increment control variable n_improvements
                     n_improvements++;
                     // update bias
-                    float fi = predict(x, y, a, a_, i, d, s, dataset_size, b);
-                    float fj = predict(x, y, a, a_, j, d, s, dataset_size, b);
+                    float fi = predict(x, y, a, a_, i, d, dataset_size, b);
+                    float fj = predict(x, y, a, a_, j, d, dataset_size, b);
                     b = update_b(y[i], y[j], fi, fj, a[i] - a_[i], a[j] - a_[j], new_a[i] - new_a_[i], new_a[j] - new_a_[j], x[i], x[j], b, d);
                     // update the lagrangean multipliers
                     a[i] = new_a[i];
@@ -420,32 +413,40 @@ int main () {
     float* a_ = (float *) malloc(dataset_size * sizeof(float));
     // TODO
     // determine which training examples are support vectors
-    // s is a support vector array used for prediction
-    // since we're determining which examples are support vectors we initialize an array with all traning examples
-    int s[dataset_size];
-    for (int ii = 0; ii < dataset_size; ii++)
-        s[ii] = ii;
     int s_[dataset_size];
     int size_of_s_ = 0;
-    float prediction;
     for (int i = 0; i < dataset_size; i++) {
-        //predict(float** x, float* y, float* a, float* a_, int i, int d, int* s, int n_sv)
-        prediction = predict(x, y, a, a_, i, d, s, dataset_size, b);
-        // if the example i is within the tube it is a support vector
-        if (fabs(prediction - y[i]) <= epsilon) {
-            s[size_of_s_] = i;
+        // support vectors are points where either αi is a non-zero or αi* is a non-zero
+        if (a[i] || a_[i]) {
+            s_[size_of_s_] = i;
             size_of_s_++;
         }
     }
-    // storing the values into an array of the correct size
-    int support_vectors[size_of_s_];
-    for (int i = 0; i < size_of_s_; i++) {
-        support_vectors[i] = s_[i];
-    }
     // store trained model
-    FILE* model;
-    model = fopen("model", "wb");
-    if (model == NULL) {
+    struct model
+    {
+        float a[size_of_s_];
+        float a_[size_of_s_];
+        float x[size_of_s_][d];
+        float b;
+    };
+
+    // storing the values into an array of the correct size
+    struct model m;
+    int n = 0;
+    for (int i = 0; i < size_of_s_; i++) {
+        n = s_[i];
+        m.a[i] = a[n];
+        m.a_[i] = a_[n];
+        for (int k = 0; k < d; k++) {
+            m.x[i][k] = x[n][k];
+        }
+    }
+    m.b = b;
+
+    FILE* file;
+    file = fopen("model", "wb");
+    if (file == NULL) {
         fprintf(stderr, "\nError opening file\n");
         exit(1);
     }
