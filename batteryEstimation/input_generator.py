@@ -6,6 +6,15 @@ import numpy
 from os import path
 from random import randint
 
+def write_data(filename: str, labeled_data: list) -> None:
+    # write labaled data to file
+    with open(filename, "w") as f:
+
+        data_string = ""
+        for x, y in labeled_data:
+            data_string += f"{x}, {y}\n"
+        
+        f.write(data_string)
 
 def generate_quadratic_data() -> list | tuple:
     # get random values for weights
@@ -17,15 +26,8 @@ def generate_quadratic_data() -> list | tuple:
         x = (i - 500) / 200
         labeled_data.append((x, w[0] + w[1] * numpy.pow(x, 2)))
 
-
     # write labaled data to file
-    with open(f"quadratic_weights={w}.txt", "w") as f:
-
-        data_string = ""
-        for x, y in labeled_data:
-            data_string += f"{x}, {y}\n"
-        
-        f.write(data_string)
+    write_data(f"quadratic_weights={w}.txt", labeled_data)
 
 def generate_exponetial_data() -> list | tuple:
     # get random values for weights
@@ -37,13 +39,8 @@ def generate_exponetial_data() -> list | tuple:
         x = (i - 500) / 200
         labeled_data.append((x, w[0] + w[1] * numpy.exp(w[2] * x)))
 
-    with open(f"quadratic_weights={w}.txt", "w") as f:
-        # write labaled data to file
-        data_string = ""
-        for x, y in labeled_data:
-            data_string += f"{x}, {y}\n"
-
-        f.write(data_string)
+    # write labaled data to file
+    write_data(f"exponential_weights={w}.txt", labeled_data)
 
 def main():
 
