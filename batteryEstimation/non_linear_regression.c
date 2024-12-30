@@ -1,7 +1,5 @@
 #include <math.h>
 // Nonlinear Regression model for battery estimation based on read voltage
-// constant e
-const float e = 2.7182;
 /*
 TODO - review calculations and review GD for nonlinear regression
 as of now the implementation corresponds to an intuition of how the optimization works
@@ -37,7 +35,7 @@ void costGradient(float* w, float* x, float* y, int n, float* result) {
 // computes the prediction of the model for input xi
 float predict(float* w, float xi) {
 
-    return w[0] + pow(w[1]*e, xi*w[2]);
+    return w[0] + w[1]*exp(xi*w[2]);
 }
 
 void gradientDescent(float* w, float* x, float* y, int n, int step, int max_iterations) {
