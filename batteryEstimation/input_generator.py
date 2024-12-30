@@ -16,7 +16,7 @@ def write_data(filename: str, labeled_data: list) -> None:
         
         f.write(data_string)
 
-def generate_quadratic_data() -> list | tuple:
+def generate_quadratic_data() -> None:
     # get random values for weights
     w = randint(0, 10000) / randint(0, 10000), randint(0, 10000) / randint(0, 10000)
     labeled_data = []
@@ -29,7 +29,7 @@ def generate_quadratic_data() -> list | tuple:
     # write labaled data to file
     write_data(f"quadratic_weights={w}.txt", labeled_data)
 
-def generate_exponetial_data() -> list | tuple:
+def generate_exponetial_data() -> None:
     # get random values for weights
     w = randint(0, 10000) / randint(0, 10000), randint(0, 10000) / randint(0, 10000)
     labeled_data = []
