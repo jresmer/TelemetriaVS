@@ -27,7 +27,7 @@ to estimate b take one suport vector m
 b = ym - ∑(αn - αn*).k(xm, xn)
 */
 // TODO - refactor order of the parameters
-float predict(float** x, float* y, float* a, float* a_, int i, int d, int size, float b) {
+float predict (float** x, float* y, float* a, float* a_, int i, int d, int size, float b) {
     // predicting yi through h(xi) = ∑(αn - αn*).k(xi, xn) + b, where n ∈ S
     float yi = 0;
     for (int k = 0; k < size; k++) {
@@ -39,7 +39,7 @@ float predict(float** x, float* y, float* a, float* a_, int i, int d, int size, 
 
 // checks if lagrange multiplier a follows the kkt conditions
 // TODO - refactor order of the parameters
-bool kkt(float** x, float* y, float* a, float* a_, int i, float c, float epsilon, float error, int d, int n_sv) {
+bool kkt (float** x, float* y, float* a, float* a_, int i, float c, float epsilon, float error, int d, int n_sv) {
     // Check bounds for Lagrange multipliers (0 ≤ αi,αi* ≤ C)
     if (a[i] < -error || a[i] > c + error || a_[i] < -error || a_[i] > c + error) {
         return false;
@@ -89,7 +89,7 @@ bool kkt(float** x, float* y, float* a, float* a_, int i, float c, float epsilon
 }
 
 // signum function implementation for float values
-int sign(float x) {
+int sign (float x) {
     
     if (-4E-4 < x && x < 4E-4) return 0;
     else if (0.0f < x) return 1;
@@ -97,7 +97,7 @@ int sign(float x) {
 }
 
 // step function implementation
-int step(float x) {
+int step (float x) {
     int a = x;
     if (x > a) {
         return a + 1;
@@ -112,7 +112,7 @@ update rule based off of:
 Machine Learning, 46, 271–290, 2002
 c 2002 Kluwer Academic Publishers. Manufactured in The Netherlands.
 */
-void update_lagrange_multipliers(int i, int j, float c, int d, float epsilon, int dataset_size, float* a, float* a_, float* w, float** x, float* y, int n_sv, float b) {
+void update_lagrange_multipliers (int i, int j, float c, int d, float epsilon, int dataset_size, float* a, float* a_, float* w, float** x, float* y, int n_sv, float b) {
     // the update rule is more numerically stable if λu > λv, therefore in case it is not we just switch them around
     float lambda_i = (a[i] - a_[i]);
     float lambda_j = (a[j] - a_[j]);
@@ -192,7 +192,7 @@ void update_lagrange_multipliers(int i, int j, float c, int d, float epsilon, in
 L(a) = -1/2.∑((αi - αi*).(αj - αj*).k(xi, xj)) - ε.∑(αi + αi*) + ∑(yi(αi + αi*))
 subjecto to: ∑((αi - αi*)) = 0 and αi, αi* ∈ [0, C]
 */
-float lagrangean(float* a, float* a_, float** x, float* y, float epsilon, int dataset_size, int d) {
+float lagrangean (float* a, float* a_, float** x, float* y, float epsilon, int dataset_size, int d) {
     float term1 = 0;
     float term2 = 0;
     float term3 = 0;
@@ -229,7 +229,7 @@ float update_b (float yi, float yj, float fi, float fj, float li, float lj, floa
     return candidate_i;
 }
 
-float train(int d, int dataset_size, int target_n_improvements, int max_iterations, float epsilon, float error, int c, float* a, float* a_, float* w, float** x, float* y) {
+float train (int d, int dataset_size, int target_n_improvements, int max_iterations, float epsilon, float error, int c, float* a, float* a_, float* w, float** x, float* y) {
     // for as many iterations as max_iterations optimizes the dual form of the langrangian
     /*
     max{(-1/2).∑(αi - αi*).(αj - αj*).k(xi, xj) - ε.∑(αi + αi*) + ∑yi.(αi + αi*)}
