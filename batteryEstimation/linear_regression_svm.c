@@ -422,7 +422,7 @@ int main () {
             size_of_s_++;
         }
     }
-    // store trained model
+    // store trained model:
     struct model
     {
         float a[size_of_s_];
@@ -431,7 +431,7 @@ int main () {
         float b;
     };
 
-    // storing the values into an array of the correct size
+    // storing the values into the struct
     struct model m;
     int n = 0;
     for (int i = 0; i < size_of_s_; i++) {
@@ -443,13 +443,23 @@ int main () {
         }
     }
     m.b = b;
-
+    // opening file
+    // .txt extension in case the model is to be accessed through windows
     FILE* file;
-    file = fopen("model", "wb");
+    file = fopen("model.txt", "wb");
     if (file == NULL) {
         fprintf(stderr, "\nError opening file\n");
         exit(1);
     }
+    // store struct into file
+    int flag = fwrite(&m, sizeof(struct model), 1, file);
+    if (flag) 
+        printf("Model successfully stored\n");
+    else
+        printf("Error storing the model\n");
+    // closing file
+    fclose(file);
+    
     // frees up arrays a, a_
     free(a);
     free(a_);
