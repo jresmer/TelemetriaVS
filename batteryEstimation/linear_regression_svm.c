@@ -112,7 +112,7 @@ update rule based off of:
 Machine Learning, 46, 271–290, 2002
 c 2002 Kluwer Academic Publishers. Manufactured in The Netherlands.
 */
-void update_lagrange_multipliers (int i, int j, float c, int d, float epsilon, int dataset_size, float* a, float* a_, float* w, float** x, float* y, int n_sv, float b) {
+void update_lagrange_multipliers (int i, int j, float c, int d, float epsilon, int dataset_size, float* a, float* a_, float** x, float* y, int n_sv, float b) {
     // the update rule is more numerically stable if λu > λv, therefore in case it is not we just switch them around
     float lambda_i = (a[i] - a_[i]);
     float lambda_j = (a[j] - a_[j]);
@@ -229,7 +229,7 @@ float update_b (float yi, float yj, float fi, float fj, float li, float lj, floa
     return candidate_i;
 }
 
-float train (int d, int dataset_size, int target_n_improvements, int max_iterations, float epsilon, float error, int c, float* a, float* a_, float* w, float** x, float* y) {
+float train (int d, int dataset_size, int max_iterations, float epsilon, float error, int c, float* a, float* a_, float** x, float* y) {
     // for as many iterations as max_iterations optimizes the dual form of the langrangian
     /*
     max{(-1/2).∑(αi - αi*).(αj - αj*).k(xi, xj) - ε.∑(αi + αi*) + ∑yi.(αi + αi*)}
@@ -250,13 +250,10 @@ float train (int d, int dataset_size, int target_n_improvements, int max_iterati
     float ai, a_i;
     float b = 0;
 
-    int n_improvements = 0;
+    int improved = 0;
     for (int o = 0; o < max_iterations; o++) {
         // resets the list
         list_size = 0;
-        // breaks out of loop if the target number of improvements in the lagrangean has been achieved
-        if (n_improvements >= target_n_improvements)
-            break;
         // selecting ai
         // alternates between the two heuristics for ai selection
         /*
@@ -322,7 +319,7 @@ float train (int d, int dataset_size, int target_n_improvements, int max_iterati
             new_a[ii] = a[ii];
             new_a_[ii] = a_[ii];
         }
-        update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, dataset_size, b);
+        update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, x, y, dataset_size, b);
         new_lagrangean = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
         // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
         if (new_lagrangean - old_lagrangean > threshold) {
@@ -339,6 +336,7 @@ float train (int d, int dataset_size, int target_n_improvements, int max_iterati
             a[j] = new_a[j];
             a_[i] = new_a_[i];
             a_[j] = new_a_[j];
+            improved = 1;
             continue;
         }
         new_a[i] = a[i];
@@ -347,7 +345,7 @@ float train (int d, int dataset_size, int target_n_improvements, int max_iterati
         for (int j = 0; j < dataset_size; j++) {
             if (0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c) {
                 // calculate updates on lagrange multipliers and verify improvement in the cost
-                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, dataset_size, b);
+                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, x, y, dataset_size, b);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
                 new_lagrangean = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
                 if (new_lagrangean - old_lagrangean > threshold) {
@@ -364,6 +362,7 @@ float train (int d, int dataset_size, int target_n_improvements, int max_iterati
                     a[j] = new_a[j];
                     a_[i] = new_a_[i];
                     a_[j] = new_a_[j];
+                    improved = 1;
                     continue;
                 }
             }
@@ -372,7 +371,7 @@ float train (int d, int dataset_size, int target_n_improvements, int max_iterati
         for (int j = 0; j < dataset_size; j++) {
             if (!(0 < a[j] && a[j] < c && 0 < a_[j] && a_[j] < c)) {
                 // calculate updates on lagrange multipliers and verify improvement in the cost
-                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, w, x, y, dataset_size, b);
+                update_lagrange_multipliers(i, j, c, d, epsilon, dataset_size, new_a, new_a_, x, y, dataset_size, b);
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
                 new_lagrangean = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
                 if (new_lagrangean - old_lagrangean > threshold) {
@@ -389,10 +388,15 @@ float train (int d, int dataset_size, int target_n_improvements, int max_iterati
                     a[j] = new_a[j];
                     a_[i] = new_a_[i];
                     a_[j] = new_a_[j];
+                    improved = 1;
                     continue;
                 }
             }
         }
+        if (improved)
+            improved = 0;
+        else
+            break;
         // fourth heuristic replace ai and try again
         // in this case we just don't increment variable n_improviments
     }
@@ -400,18 +404,57 @@ float train (int d, int dataset_size, int target_n_improvements, int max_iterati
     return b;
 }
 
-int main () {
-    // read data
-    int dataset_size, d, c, max_iterations;
+// utility copy function
+// copies strings 8 bytes a time
+void copy(char* to, char* from, size_t count) {
+    size_t n = (count + 7) / 8;
+
+    switch (count % 8) {
+        case 0: do {
+            *to++ = *from++;
+            case 7: *to++ = *from++;
+            case 6: *to++ = *from++;
+            case 5: *to++ = *from++;
+            case 4: *to++ = *from++;
+            case 3: *to++ = *from++;
+            case 2: *to++ = *from++;
+            case 1: *to++ = *from++;
+        } while (--n > 0);
+    }
+
+}
+
+int main (int argc, char *argv[]) {
+    if (argc != 4) {
+        printf("Usage: input_generator [dataset size] [dimensionality of the input] [filaname: char[18]]")
+        exit(1);
+    } 
+    // READ DATA
+    // declaring variables
+    int dataset_size, d, c, max_iterations, target_n_improviments;
     float epsilon, error, b;
     float** x;
     float* y;
-    // TODO
-    // train model
+
+    dataset_size = atoi(argc[1]);
+    d = atoi(argc[2]);
+    char target[18];
+    copy(&target[0], &argc[3][0], 18);
+    // allocating memory
+    y = (float *) malloc(dataset_size * sizeof(float));
+    x = (float **) malloc(dataset_size * sizeof(float*));
+    for (int i = 0; i < dataset_size; i++) x[i] = (float *) malloc(d * sizeof(float));
+    // TODO - read data
     // initializes langrange multipliers as [0 0 ... 0]
     float* a = (float *) malloc(dataset_size * sizeof(float));
     float* a_ = (float *) malloc(dataset_size * sizeof(float));
-    // TODO
+    // hyperparameters
+    c = 0.5f; // TODO - update value
+    max_iterations = 5 * dataset_size; // TODO - update value
+    epsilon = 0.5f; // TODO - update value
+    error = 5E-4; // TODO - update value
+    // train model
+    b = train(d, dataset_size, max_iterations, epsilon, error, c, a, a_, x, y);
     // determine which training examples are support vectors
     int s_[dataset_size];
     int size_of_s_ = 0;
@@ -463,6 +506,9 @@ int main () {
     // frees up arrays a, a_
     free(a);
     free(a_);
+    free(y);
+    for (int i = 0; i < dataset_size; i++) free(x[i]);
+    free(x);
 
     return 0;
 }
