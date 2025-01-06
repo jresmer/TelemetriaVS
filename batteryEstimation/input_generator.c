@@ -106,8 +106,8 @@ void read_data (float* w, float* y, float** x, int d, int dataset_size)
     int flag = fread(w, sizeof(float), 3, file);
     for (int i = 0; i < dataset_size; i++) 
     {
-        x[i] = malloc(d * sizeof(float));
-        int flag = fread(x[i], sizeof(float), d, file);
+        x[i] = (float *) malloc(d * sizeof(float));
+        flag = fread(x[i], sizeof(float), d, file);
         flag = fread(&y[i], sizeof(float), 1, file);
     }
     
