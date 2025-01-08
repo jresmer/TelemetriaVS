@@ -5,7 +5,7 @@ This scripts generates labeled data that will be used for testing the regression
 #include <stdlib.h>
 #include <stdio.h>
 
-void write_data (float** x, float* y, float* w, int size, int d, int dataset_size) 
+void write_data (float** x, float* y, float* w, int size, int d, int dataset_size, int write_w) 
 {
 
     FILE* file;
@@ -17,12 +17,14 @@ void write_data (float** x, float* y, float* w, int size, int d, int dataset_siz
     }
     int stored_values = 0;
     int flag;
-    // write w1 value to file labeled_data.txt
-    flag = fwrite(w, size * sizeof(float), 1, file);
-    if (!flag) 
-    {
-        printf("Error storing weights\n");
-        exit(1);
+    if (write_w) {
+        // write w1 value to file labeled_data.txt
+        flag = fwrite(w, size * sizeof(float), 1, file);
+        if (!flag) 
+        {
+            printf("Error storing weights\n");
+            exit(1);
+        }
     }
     
     // writing training example x1 to file labeled_data.txt
@@ -49,7 +51,6 @@ void write_data (float** x, float* y, float* w, int size, int d, int dataset_siz
 
 void generate_quadratic_data () 
 {
-    // TODO - gemerate random values
     float w[2] = {(float) (rand() % 100 - 50) / 50.0f , (float) (rand() % 100 - 50) / 50.0f};
     float* x[1000];
     float y[1000];
@@ -61,7 +62,7 @@ void generate_quadratic_data ()
         y[i] = w[0] + w[1] * pow(x[i][0], 2);
     }
 
-    write_data(x, y, w, 2, 1, 1000);
+    write_data(x, y, w, 2, 1, 1000, 0);
     
     for (int i = 0; i < 1000; i++) 
     {
@@ -71,12 +72,9 @@ void generate_quadratic_data ()
 
 void generate_exponential_data () 
 {
-    // TODO - gemerate random values
     float w[3] = {(float) (rand() % 100 - 50) / 50.0f , (float) (rand() % 100 - 50) / 50.0f, (float) (rand() % 100 - 50) / 50.0f};
     float* x[1000];
     float y[1000];
-    
-    printf("w1: %f, w2: %f, w3: %f\n\n", w[0], w[1], w[2]);
 
     for (int i = 0; i < 1000; i++) 
     {
@@ -85,7 +83,7 @@ void generate_exponential_data ()
         y[i] = w[0] + w[1] * exp(w[2] * x[i][0]);
     }
 
-    write_data(x, y, w, 3, 1, 1000);
+    write_data(x, y, w, 3, 1, 1000, 1);
     
     for (int i = 0; i < 1000; i++) 
     {
@@ -114,21 +112,24 @@ void read_data (float* w, float* y, float** x, int d, int dataset_size)
     fclose(file);
 }
 
-int main () {
-    // generating data
-    generate_exponential_data();
-    // reading data
-    float w[3];
-    float y[1000];
-    float* x[1000];
-    read_data(w, y, x, 1, 1000);
-    // printing read data
-    for (int i = 0; i < 1000; i++) 
-    {
-        printf("x: %f, y: %f\n", x[i][0], y[i]);
+int main (int argc, char *argv[]) {
+    if (argc != 2) {
+        printf("Usage: input_generator [input type]");
+        exit(1);
     }
-    
-    printf("w1: %f, w2: %f, w3: %f\n", w[0], w[1], w[2]);
+    int algo = atoi(argv[1]);
+    switch (algo)
+    {
+    case '1':
+        // generating quadratic data
+        generate_quadratic_data();
+        break;
+
+    default:
+        // generating exponential data
+        generate_exponential_data();
+        break;
+    }
     
     return 1;
 }
