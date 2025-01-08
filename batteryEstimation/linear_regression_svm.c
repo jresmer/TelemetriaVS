@@ -27,11 +27,11 @@ to estimate b take one suport vector m
 b = ym - ∑(αn - αn*).k(xm, xn)
 */
 // TODO - refactor order of the parameters
-float predict (float** x, float* y, float* a, float* a_, int i, int d, int size, float b) {
+float predict (float** x, float* a, float* a_, float* xi, int d, int size, float b) {
     // predicting yi through h(xi) = ∑(αn - αn*).k(xi, xn) + b, where n ∈ S
     float yi = 0;
     for (int k = 0; k < size; k++) {
-        yi += (a[k] - a_[k])*dotProduct(x[i], x[k], d);
+        yi += (a[k] - a_[k])*dotProduct(xi, x[k], d);
     }
 
     return yi + b;
@@ -52,7 +52,7 @@ bool kkt (float** x, float* y, float* a, float* a_, int i, float c, float epsilo
     }
 
     // Get prediction h(x) using provided predict function
-    float pred = predict(x, y, a, a_, i, d, n_sv, d);
+    float pred = predict(x, a, a_, x[i], d, n_sv, d);
     
     // Calculate prediction error
     float pred_error = y[i] - pred;
@@ -133,7 +133,7 @@ void update_lagrange_multipliers (int i, int j, float c, int d, float epsilon, i
 
     // λi = αi - αi*
     // calculate new λj based off the value of the old one
-    float lj_new = (a[j] - a_[j]) + 1/ita * (y[j] - y[i] + predict(x, y, a, a_, j, d, n_sv, b) - predict(x, y, a, a_, i, d, n_sv, b));
+    float lj_new = (a[j] - a_[j]) + 1/ita * (y[j] - y[i] + predict(x, a, a_, x[j], d, n_sv, b) - predict(x, a, a_, x[i], d, n_sv, b));
     float li_new = z - lj_new;
 
     // if the multipliers differ in sign adjust the multipliers
@@ -250,8 +250,9 @@ float train (int d, int dataset_size, int max_iterations, float epsilon, float e
     float ai, a_i;
     float b = 0;
 
-    int improved = 0;
+    int improved = 1;
     for (int o = 0; o < max_iterations; o++) {
+        printf("iteration %d\n", o);
         // resets the list
         list_size = 0;
         // selecting ai
@@ -295,7 +296,10 @@ float train (int d, int dataset_size, int max_iterations, float epsilon, float e
             }
         }
         // if no training example violates the kkt conditions then the global minumum has been reached
-        if (!list_size) break;
+        if (!list_size) {
+            printf("no vialations to the kkt conditions found\n");
+            break;
+        }
         // recovering
         int i = lagrange_multipliers[rand() % list_size];
         ai = a[i];
@@ -306,7 +310,7 @@ float train (int d, int dataset_size, int max_iterations, float epsilon, float e
         float largest_change, change;
         largest_change = 0;
         for (int ii = 0; ii < dataset_size; ii++) {
-            change = abs(predict(x, y, a, a_, i, d, dataset_size, b) - y[i] - predict(x, y, a, a_, i, d, dataset_size, b));
+            change = abs(predict(x, a, a_, x[i], d, dataset_size, b) - y[i] - predict(x, a, a_, x[i], d, dataset_size, b));
             if (change > largest_change) {
                 largest_change = change;
                 j = ii;
@@ -323,13 +327,12 @@ float train (int d, int dataset_size, int max_iterations, float epsilon, float e
         new_lagrangean = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
         // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
         if (new_lagrangean - old_lagrangean > threshold) {
+            printf("improved with the 1st heuristc\n");
             // update lagrangean
             old_lagrangean = new_lagrangean;
-            // increment control variable n_improvements
-            n_improvements++;
             // update bias
-            float fi = predict(x, y, a, a_, i, d, dataset_size, b);
-            float fj = predict(x, y, a, a_, j, d, dataset_size, b);
+            float fi = predict(x, a, a_, x[i], d, dataset_size, b);
+            float fj = predict(x, a, a_, x[j], d, dataset_size, b);
             b = update_b(y[i], y[j], fi, fj, a[i] - a_[i], a[j] - a_[j], new_a[i] - new_a_[i], new_a[j] - new_a_[j], x[i], x[j], b, d);
             // update the lagrangean multipliers
             a[i] = new_a[i];
@@ -349,13 +352,12 @@ float train (int d, int dataset_size, int max_iterations, float epsilon, float e
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
                 new_lagrangean = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
                 if (new_lagrangean - old_lagrangean > threshold) {
+                    printf("improved with the 2nd heuristc\n");
                     // update lagrangean
                     old_lagrangean = new_lagrangean;
-                    // increment control variable n_improvements
-                    n_improvements++;
                     // update bias
-                    float fi = predict(x, y, a, a_, i, d, dataset_size, b);
-                    float fj = predict(x, y, a, a_, j, d, dataset_size, b);
+                    float fi = predict(x, a, a_, x[i], d, dataset_size, b);
+                    float fj = predict(x, a, a_, x[j], d, dataset_size, b);
                     b = update_b(y[i], y[j], fi, fj, a[i] - a_[i], a[j] - a_[j], new_a[i] - new_a_[i], new_a[j] - new_a_[j], x[i], x[j], b, d);
                     // update the lagrangean multipliers
                     a[i] = new_a[i];
@@ -375,13 +377,12 @@ float train (int d, int dataset_size, int max_iterations, float epsilon, float e
                 // if the lagrangean improved attribute the new values to ai and aj and continue to the next iteration
                 new_lagrangean = lagrangean(new_a, new_a_, x, y, epsilon, dataset_size, d);
                 if (new_lagrangean - old_lagrangean > threshold) {
+                    printf("improved with the 3rd heuristc\n");
                     // update lagrangean
                     old_lagrangean = new_lagrangean;
-                    // increment control variable n_improvements
-                    n_improvements++;
                     // update bias
-                    float fi = predict(x, y, a, a_, i, d, dataset_size, b);
-                    float fj = predict(x, y, a, a_, j, d, dataset_size, b);
+                    float fi = predict(x, a, a_, x[i], d, dataset_size, b);
+                    float fj = predict(x, a, a_, x[j], d, dataset_size, b);
                     b = update_b(y[i], y[j], fi, fj, a[i] - a_[i], a[j] - a_[j], new_a[i] - new_a_[i], new_a[j] - new_a_[j], x[i], x[j], b, d);
                     // update the lagrangean multipliers
                     a[i] = new_a[i];
@@ -393,10 +394,13 @@ float train (int d, int dataset_size, int max_iterations, float epsilon, float e
                 }
             }
         }
-        if (improved)
+        if (improved) {
+            printf("did not improve within this iteration\n");
             improved = 0;
-        else
+        } else {
+            printf("no improvement within the last two iterations\n");
             break;
+        }
         // fourth heuristic replace ai and try again
         // in this case we just don't increment variable n_improviments
     }
@@ -426,7 +430,7 @@ void copy(char* to, char* from, size_t count) {
 
 int main (int argc, char *argv[]) {
     if (argc != 4) {
-        printf("Usage: input_generator [dataset size] [dimensionality of the input] [filaname: char[18]]")
+        printf("Usage: svm [dataset size] [dimensionality of the input] [filaname: char[18]]");
         exit(1);
     } 
     // READ DATA
@@ -436,15 +440,31 @@ int main (int argc, char *argv[]) {
     float** x;
     float* y;
 
-    dataset_size = atoi(argc[1]);
-    d = atoi(argc[2]);
-    char target[18];
-    copy(&target[0], &argc[3][0], 18);
+    dataset_size = atoi(argv[1]);
+    d = atoi(argv[2]);
+    char filename[18];
+    copy(&filename[0], &argv[3][0], 18);
     // allocating memory
     y = (float *) malloc(dataset_size * sizeof(float));
     x = (float **) malloc(dataset_size * sizeof(float*));
     for (int i = 0; i < dataset_size; i++) x[i] = (float *) malloc(d * sizeof(float));
-    // TODO - read data
+    // read data
+    FILE* data;
+    data = fopen(filename, "rb");
+    if (data == NULL) {
+        fprintf(stderr, "\nError opening file\n");
+        exit(1);
+    }
+    int flag;
+    for (int i = 0; i < dataset_size; i++) {
+        flag = fread(&y[i], sizeof(float), 1, data);
+        flag = fread(x[i], sizeof(float), d, data);
+    }
+    fclose(data);
+    for (int i = 0; i < dataset_size; i++) {
+        printf("xi = %f; ", x[i][0]);
+        printf("yi = %f\n", y[i]);
+    }
     // initializes langrange multipliers as [0 0 ... 0]
     float* a = (float *) malloc(dataset_size * sizeof(float));
     float* a_ = (float *) malloc(dataset_size * sizeof(float));
@@ -470,8 +490,9 @@ int main (int argc, char *argv[]) {
     {
         float a[size_of_s_];
         float a_[size_of_s_];
-        float x[size_of_s_][d];
+        float* x[size_of_s_];
         float b;
+        int size;
     };
 
     // storing the values into the struct
@@ -482,10 +503,17 @@ int main (int argc, char *argv[]) {
         m.a[i] = a[n];
         m.a_[i] = a_[n];
         for (int k = 0; k < d; k++) {
+            m.x[i] = (float *) malloc(sizeof(float));
             m.x[i][k] = x[n][k];
         }
     }
     m.b = b;
+    m.size = size_of_s_;
+    // TEST
+    // predict (float** x, float* a, float* a_, float* xi, int d, int size, float b)
+    float xi[1] = {0.0f};
+    float prediction = predict(m.x, m.a, m.a_, xi, 1, m.size, m.b);
+    printf("h(x)=%f\n", prediction);
     // opening file
     // .txt extension in case the model is to be accessed through windows
     FILE* file;
@@ -495,7 +523,7 @@ int main (int argc, char *argv[]) {
         exit(1);
     }
     // store struct into file
-    int flag = fwrite(&m, sizeof(struct model), 1, file);
+    flag = fwrite(&m, sizeof(struct model), 1, file);
     if (flag) 
         printf("Model successfully stored\n");
     else
