@@ -215,7 +215,6 @@ based on what is proposed in:
 Machine Learning, 46, 271–290, 2002
 c 2002 Kluwer Academic Publishers. Manufactured in The Netherlands.
 */
-// (int d, int dataset_size, int max_iterations, float epsilon, float error, float c, float* a, float* a_, float** x, float* y) 
 float train (float* a, float* a_, float** x, float* y, float epsilon, float tolerance, float c, int d, int dataset_size) {
     /*
     min{(1/2).∑(αi - αi*).(αj - αj*).k(xi, xj) + ε.∑(αi + αi*) - ∑yi.(αi + αi*)}
@@ -232,21 +231,21 @@ float train (float* a, float* a_, float** x, float* y, float epsilon, float tole
         repeats until there is no improvement made in the last two iterations or the maximum iteration number is reached
     */
     // update attempt step
-    bool step(float* a,
-              float* a_,
-              float** x,
-              float* y,
-              int* support_vectors,
-              int u,
-              int v,
-              int d,
-              int heuristic,
-              float c,
-              float* b,
-              float* threshold,
-              float* lagrangean,
-              size_t* sv_size,
-              bool* improved_last_iter) {
+    bool step ( float* a,
+                float* a_,
+                float** x,
+                float* y,
+                int* support_vectors,
+                int u,
+                int v,
+                int d,
+                int heuristic,
+                float c,
+                float* b,
+                float* threshold,
+                float* lagrangean,
+                size_t* sv_size,
+                bool* improved_last_iter ) {
         // store old values
         float au = a[u];
         float au_ = a_[u];
@@ -388,7 +387,7 @@ float train (float* a, float* a_, float** x, float* y, float epsilon, float tole
 
 }
 
-int main () {
+int main (int argc, char *argv[]) {
     // UTILITY COPY FUNCTION
     // Duff's device
     // copies strings 8 bytes a time
@@ -411,6 +410,124 @@ int main () {
     /*
     TODO add in between code
     */
+    if (argc != 4) {
+        printf("Usage: svm [dataset size] [dimensionality of the input] [filaname: char[18]]");
+        exit(1);
+    }
+    // READ DATA
+    // declaring variables
+    int dataset_size, d, c, max_iterations, target_n_improviments;
+    float epsilon, tolerance, b;
+    float** x;
+    float* y;
+
+    dataset_size = atoi(argv[1]);
+    d = atoi(argv[2]);
+    char filename[18];
+    copy(&filename[0], &argv[3][0], 18);
+    // allocating memory
+    y = (float *) malloc(dataset_size * sizeof(float));
+    x = (float **) malloc(dataset_size * sizeof(float*));
+    for (int i = 0; i < dataset_size; i++) x[i] = (float *) malloc(d * sizeof(float));
+    // read data
+    FILE* data;
+    data = fopen(filename, "rb");
+    if (data == NULL) {
+        fprintf(stderr, "\nError opening file\n");
+        exit(1);
+    }
+    int flag;
+    for (int i = 0; i < dataset_size; i++) {
+        flag = fread(x[i], sizeof(float), d, data);
+        flag = fread(&y[i], sizeof(float), 1, data);
+        printf("input=%f; target output=%f\n", x[i][0], y[i]);
+    }
+    fclose(data);
+    // initializes langrange multipliers as [0 0 ... 0]
+    float* a = (float *) malloc(dataset_size * sizeof(float));
+    float* a_ = (float *) malloc(dataset_size * sizeof(float));
+    for (int k = 0; k < dataset_size; k++) {
+        a[k] = 0;
+        a_[k] = 0;
+    }
+    // hyperparameters
+    c = 1.5f; // TODO - update value
+    epsilon = 0.2f; // TODO - update value
+    tolerance = 5E-6; // TODO - update value
+    // train model
+    // train (float* a, float* a_, float** x, float* y, float epsilon, float tolerance, float c, int d, int dataset_size)
+    b = train(a, a_, x, y, epsilon, tolerance, c, d, dataset_size);
+    printf("model trained\n");
+    // determine which training examples are support vectors
+    int s_[dataset_size];
+    int size_of_s_ = 0;
+    for (int i = 0; i < dataset_size; i++) {
+        // support vectors are points where either αi is a non-zero or αi* is a non-zero
+        if (a[i] || a_[i]) {
+            s_[size_of_s_] = i;
+            size_of_s_++;
+        }
+    }
+    // store trained model:
+    struct model
+    {
+        float a[size_of_s_];
+        float a_[size_of_s_];
+        float* x[size_of_s_];
+        float b;
+        int size;
+    };
+    free(y);
+    printf("allocating data struct\n");
+    // storing the values into the struct
+    struct model m;
+    int n = 0;
+    for (int i = 0; i < size_of_s_; i++) {
+        n = s_[i];
+        m.a[i] = a[n];
+        m.a_[i] = a_[n];
+        for (int k = 0; k < d; k++) {
+            m.x[i] = (float *) malloc(sizeof(float));
+            m.x[i][k] = x[n][k];
+        }
+        printf("a%d=%f;a*%d=%f;x%d=%f;b=%f\n", i, m.a[i], i, m.a_[i], i, m.x[i][0], b);
+    }
+    m.b = b;
+    m.size = size_of_s_;
+    // TEST
+    float prediction_error = 0;
+    float prediction;
+    int support_vectors[m.size];
+    for (int i = 0; i < m.size; i++) support_vectors[i] = i;
+    for (int i = 0; i < dataset_size; i++) {
+        // (float* a, float* a_, float** x, int* support_vectors, int size, int i, int d, float b)
+        prediction = predict(m.a, m.a_, m.x, support_vectors, m.size, i, d, m.b);
+        printf("predicted value=%f; target value=%f\n", prediction, y[i]);
+        prediction_error += fabs(prediction - y[i]);
+    }
+    printf("|h(x) - yi| = %f\n", prediction_error/dataset_size);
+    // opening file
+    // .txt extension in case the model is to be accessed through windows
+    FILE* file;
+    file = fopen("model.txt", "wb");
+    if (file == NULL) {
+        fprintf(stderr, "\nError opening file\n");
+        exit(1);
+    }
+    // store struct into file
+    flag = fwrite(&m, sizeof(struct model), 1, file);
+    if (flag) 
+        printf("Model successfully stored\n");
+    else
+        printf("Error storing the model\n");
+    // closing file
+    fclose(file);
+    
+    // frees up arrays a, a_
+    free(a);
+    free(a_);
+    for (int i = 0; i < dataset_size; i++) free(x[i]);
+    free(x);
 
     return 0;
 }
