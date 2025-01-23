@@ -7,6 +7,7 @@ subjecto to: ∑((αi - αi*)) = 0 and αi, αi* ∈ [0, C]
 #include <stdio.h>
 #include <stdbool.h>
 #include <math.h>
+#include <string.h>
 
 // computes the doct product between a and b, where a and b are vectors of size "size" and stores the result onto the variable "result"
 // will be used as the kernel function k(xn, xm)
@@ -331,7 +332,9 @@ float train (float* a, float* a_, float** x, float* y, float epsilon, float tole
                     working_set_size++;
                 }
             }
+
         }
+        printf("working set size = %d\n", (int) working_set_size);
         // iterate through the working set
         for (int i = 0; i < working_set_size; i++) {
             // recover u
@@ -428,7 +431,9 @@ int main (int argc, char *argv[]) {
     // allocating memory
     y = (float *) malloc(dataset_size * sizeof(float));
     x = (float **) malloc(dataset_size * sizeof(float*));
-    for (int i = 0; i < dataset_size; i++) x[i] = (float *) malloc(d * sizeof(float));
+    for (int i = 0; i < dataset_size; i++) {
+        x[i] = (float *) malloc(d * sizeof(float));
+    }
     // read data
     FILE* data;
     data = fopen(filename, "rb");
@@ -451,8 +456,8 @@ int main (int argc, char *argv[]) {
         a_[k] = 0;
     }
     // hyperparameters
-    c = 1.5f; // TODO - update value
-    epsilon = 0.2f; // TODO - update value
+    c = 10.0f; // TODO - update value
+    epsilon = 0.0005f; // TODO - update value
     tolerance = 5E-6; // TODO - update value
     // train model
     // train (float* a, float* a_, float** x, float* y, float epsilon, float tolerance, float c, int d, int dataset_size)
@@ -469,28 +474,25 @@ int main (int argc, char *argv[]) {
         }
     }
     // store trained model:
-    struct model
-    {
-        float a[size_of_s_];
-        float a_[size_of_s_];
-        float* x[size_of_s_];
+    struct model {
+        float* a;
+        float* a_;
+        float** x;
         float b;
         int size;
+        int d; // Store dimensionality
     };
-    free(y);
-    printf("allocating data struct\n");
     // storing the values into the struct
     struct model m;
-    int n = 0;
+    printf("allocating data struct\n");
+    m.a = malloc(size_of_s_ * sizeof(float));
+    m.a_ = malloc(size_of_s_ * sizeof(float));
+    m.x = malloc(size_of_s_ * sizeof(float*));
     for (int i = 0; i < size_of_s_; i++) {
-        n = s_[i];
-        m.a[i] = a[n];
-        m.a_[i] = a_[n];
-        for (int k = 0; k < d; k++) {
-            m.x[i] = (float *) malloc(sizeof(float));
-            m.x[i][k] = x[n][k];
-        }
-        printf("a%d=%f;a*%d=%f;x%d=%f;b=%f\n", i, m.a[i], i, m.a_[i], i, m.x[i][0], b);
+        m.x[i] = malloc(d * sizeof(float));
+        m.a[i] = a[s_[i]];
+        m.a_[i] = a_[s_[i]];
+        memcpy(m.x[i], x[s_[i]], d * sizeof(float));
     }
     m.b = b;
     m.size = size_of_s_;
@@ -499,13 +501,13 @@ int main (int argc, char *argv[]) {
     float prediction;
     int support_vectors[m.size];
     for (int i = 0; i < m.size; i++) support_vectors[i] = i;
-    for (int i = 0; i < dataset_size; i++) {
-        // (float* a, float* a_, float** x, int* support_vectors, int size, int i, int d, float b)
-        prediction = predict(m.a, m.a_, m.x, support_vectors, m.size, i, d, m.b);
+    // (float* a, float* a_, float** x, int* support_vectors, int size, int i, int d, float b)
+    for (int i = 5; i < dataset_size; i++) {
+        prediction = predict(m.a, m.a_, x, support_vectors, m.size, i, d, m.b);
         printf("predicted value=%f; target value=%f\n", prediction, y[i]);
         prediction_error += fabs(prediction - y[i]);
     }
-    printf("|h(x) - yi| = %f\n", prediction_error/dataset_size);
+    printf("|h(x) - yi| = %f\n", prediction_error);
     // opening file
     // .txt extension in case the model is to be accessed through windows
     FILE* file;
@@ -528,6 +530,11 @@ int main (int argc, char *argv[]) {
     free(a_);
     for (int i = 0; i < dataset_size; i++) free(x[i]);
     free(x);
+    free(y);
+    free(m.a);
+    free(m.a_);
+    for (int i = 0; i < m.size; i++) free(m.x[i]);
+    free(m.x);
 
     return 0;
 }
