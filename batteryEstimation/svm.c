@@ -194,7 +194,7 @@ float update_threshold (float yu, float yv, float fu_, float fv_, float λu_, fl
     float bu = yu - fu_ + (λu_ - λu) * kuu + (λv_ - λv) * kuv + threshold;
     float bv = yv - fv_ + (λu_ - λu) * kuv + (λv_ - λv) * kvv + threshold;
 
-    if (bu != bv) return (bu + bv) * 0.5f;
+    if (fabs(bu - bv) > 1E-6) return (bu + bv) * 0.5f;
     return bu;
 }
 
@@ -380,28 +380,6 @@ float train (float* a, float* a_, float** x, float* y, float epsilon, float tole
 }
 
 int main (int argc, char *argv[]) {
-    // UTILITY COPY FUNCTION
-    // Duff's device
-    // copies strings 8 bytes a time
-    void copy(char* to, char* from, size_t count) {
-        size_t n = (count + 7) / 8;
-
-        switch (count % 8) {
-            case 0: do {
-                *to++ = *from++;
-                case 7: *to++ = *from++;
-                case 6: *to++ = *from++;
-                case 5: *to++ = *from++;
-                case 4: *to++ = *from++;
-                case 3: *to++ = *from++;
-                case 2: *to++ = *from++;
-                case 1: *to++ = *from++;
-            } while (--n > 0);
-        }
-    }
-    /*
-    TODO add in between code
-    */
     if (argc != 4) {
         printf("Usage: svm [dataset size] [dimensionality of the input] [filaname: char[18]]");
         exit(1);
@@ -416,7 +394,7 @@ int main (int argc, char *argv[]) {
     dataset_size = atoi(argv[1]);
     d = atoi(argv[2]);
     char filename[18];
-    copy(&filename[0], &argv[3][0], 18);
+    memcpy(filename, argv[3], 18);
     // allocating memory
     y = (float *) malloc(dataset_size * sizeof(float));
     x = (float **) malloc(dataset_size * sizeof(float*));
