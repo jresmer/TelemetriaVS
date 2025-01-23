@@ -9,6 +9,11 @@ subjecto to: ∑((αi - αi*)) = 0 and αi, αi* ∈ [0, C]
 #include <math.h>
 #include <string.h>
 
+// signum function implementation as macro
+#define SGN(x) ((x > 1e-4) ? 1 : ((x < -1e-4) ? -1 : 0))
+// step function implementation as macro
+#define STEP(x) ((x) > (int)(x) ? (int)(x) + 1 : (int)(x))
+
 // computes the doct product between a and b, where a and b are vectors of size "size" and stores the result onto the variable "result"
 // will be used as the kernel function k(xn, xm)
 float dot (float* a, float* b, unsigned int d) {
@@ -99,22 +104,6 @@ obsevation: "*" is used to indicate and older/previous value
 */
 void update_multipliers (float* a, float* a_, int u, int v, float* xu, float* xv, float yu, float yv, float fu, float fv, float c, float epsilon, int d) {
     // UTILITY FUNCTIONS FOR THE UPDATE RULE
-    // signum function implementation for float values
-    int sgn (float x) {
-        
-        if (-4E-4 < x && x < 4E-4) return 0;
-        else if (0.0f < x) return 1;
-        else return -1;
-    }
-    // step function implementation
-    int step (float x) {
-        int a = x;
-        if (x > a) {
-            return a + 1;
-        } else {
-            return a;
-        }
-    }
     // max function implemented for two float values
     float max(float a, float b) {
         if (a >= b) return a;
@@ -137,9 +126,9 @@ void update_multipliers (float* a, float* a_, int u, int v, float* xu, float* xv
     float λu = s - λv;
     if (λv * λu < 0) {
         if (fabs(λv) >= delta && fabs(λu) >= delta)
-            λv = λv - sgn(λv) * delta;
+            λv = λv - SGN(λv) * delta;
         else
-            λv = step(fabs(λv) - fabs(λu)) * s;
+            λv = STEP(fabs(λv) - fabs(λu)) * s;
     }
     // L = max(s∗ − C, −C);
     float L = max(s - c, -c);
@@ -150,14 +139,14 @@ void update_multipliers (float* a, float* a_, int u, int v, float* xu, float* xv
     // λu = s∗ − λv ;
     λu = s - λv;
     // updating the separate multipliers on the array
-    if (sgn(λv) == 1) {
+    if (SGN(λv) == 1) {
         a[v] = λv;
         a_[v] = 0;
     } else {
         a[v] = 0;
         a_[v] = fabs(λv);
     }
-    if (sgn(λu) == 1) {
+    if (SGN(λu) == 1) {
         a[u] = λu;
         a_[u] = 0;
     } else {
